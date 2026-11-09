@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+.env
+*.db
+test_deployed_api.py

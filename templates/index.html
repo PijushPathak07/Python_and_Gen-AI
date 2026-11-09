@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinSight AI — Earnings Call Intelligence Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-emerald-400">FinSight AI</h1>
+        <p class="text-xs text-slate-400">Enterprise Earnings Call Intelligence & Risk Radar (SHA-256 Cached)</p>
+      </div>
+      <button id="load-sample-btn" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-lg transition">
+        Load Sample Earnings Transcript
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <!-- Left Column: Input + History -->
+    <section class="lg:col-span-4 space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h2 class="text-base font-semibold mb-4 text-slate-200">Analyze Transcript</h2>
+        <form id="transcript-form" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Company Name *</label>
+            <input type="text" id="company-name" required placeholder="e.g. Reliance Industries" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Ticker</label>
+              <input type="text" id="ticker" placeholder="e.g. RELIANCE" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Quarter</label>
+              <input type="text" id="quarter" placeholder="e.g. Q3 FY26" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Upload PDF / TXT (Optional)</label>
+            <input type="file" id="transcript-file" accept=".pdf,.txt" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700" />
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Transcript Text *</label>
+            <textarea id="transcript-text" rows="7" placeholder="Paste earnings call transcript or upload a PDF above..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"></textarea>
+          </div>
+          <button type="submit" id="submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm transition">
+            Run Intelligence Extraction
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-200">Cached Reports History</h3>
+          <span class="text-xs text-slate-500" id="history-count">0 saved</span>
+        </div>
+        <div id="history-list" class="space-y-2 max-h-72 overflow-y-auto text-xs"></div>
+      </div>
+    </section>
+
+    <!-- Right Column: Results Dashboard -->
+    <section class="lg:col-span-8 space-y-6">
+      <div id="empty-state" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-xl p-12 text-center">
+        <p class="text-slate-400 text-sm">Submit an earnings call transcript or click <strong>"Load Sample Earnings Transcript"</strong> in the top bar to generate multi-pillar institutional intelligence.</p>
+      </div>
+
+      <div id="dashboard-content" class="hidden space-y-6">
+        <!-- Executive Header -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-3">
+              <h2 id="res-company" class="text-2xl font-bold text-white"></h2>
+              <span id="res-cache-badge" class="hidden text-xs bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2.5 py-0.5 rounded-full">SHA-256 Cache Hit (0 Tokens)</span>
+            </div>
+            <p id="res-meta" class="text-xs text-slate-400 mt-1"></p>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-right">
+              <span class="block text-xs text-slate-400">Sentiment</span>
+              <span id="res-sentiment" class="inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold"></span>
+            </div>
+            <div class="text-right">
+              <span class="block text-xs text-slate-400">Confidence</span>
+              <span id="res-confidence" class="text-lg font-bold text-emerald-400"></span>
+            </div>
+            <div class="text-right">
+              <span class="block text-xs text-slate-400">Risk Index</span>
+              <span id="res-risk" class="text-lg font-bold text-amber-400"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Radar Chart & Takeaways -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <h3 class="text-sm font-semibold text-slate-300 mb-3">6-Factor Institutional Radar</h3>
+            <canvas id="radarChart" height="220"></canvas>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+            <div>
+              <h3 class="text-sm font-semibold text-slate-300 mb-3">Executive Takeaways</h3>
+              <ul id="res-takeaways" class="space-y-2 text-sm text-slate-300 list-disc list-inside"></ul>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-800">
+              <h4 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Extracted Financial KPIs</h4>
+              <div id="res-kpis" class="grid grid-cols-2 gap-2 text-xs"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 Core Category Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="category-cards"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let radarChartInstance = null;
+
+    const SAMPLE_TRANSCRIPT = `Good evening everyone, and welcome to Apex Cloud Systems Q3 FY26 Earnings Call.
+We delivered record quarterly revenue of $1.42 billion, representing 24% year-over-year growth, driven by strong enterprise adoption of our AI data warehouse platform. Operating margin expanded by 320 basis points to 28.4%, and diluted EPS reached $1.18, beating consensus guidance. Free cash flow rose 31% YoY to $410 million.
+Regarding market dynamics, enterprise cloud migration demand has accelerated, though mid-market software budgets remain scrutinized due to macroeconomic interest rate headwinds.
+On expansion plans, we are launching two new sovereign cloud regions in Frankfurt and Mumbai next quarter and investing $150M in next-generation GPU inference clusters.
+On environmental sustainability, 88% of our data center footprint now runs on renewable power Purchase Agreements, reducing Scope 2 emissions by 19%.
+Finally, regarding regulatory changes, we completed full compliance audits for the EU AI Act and new digital data residency mandates with zero material compliance risk.`;
+
+    document.getElementById('load-sample-btn').addEventListener('click', () => {
+      document.getElementById('company-name').value = 'Apex Cloud Systems';
+      document.getElementById('ticker').value = 'APEX';
+      document.getElementById('quarter').value = 'Q3 FY26';
+      document.getElementById('transcript-text').value = SAMPLE_TRANSCRIPT;
+    });
+
+    function renderDashboard(data) {
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('dashboard-content').classList.remove('hidden');
+
+      document.getElementById('res-company').textContent = data.company_name;
+      const cacheBadge = document.getElementById('res-cache-badge');
+      if (data.cached) cacheBadge.classList.remove('hidden');
+      else cacheBadge.classList.add('hidden');
+
+      const words = data.nlp_metrics ? data.nlp_metrics.word_count : 'N/A';
+      document.getElementById('res-meta').textContent = `${data.ticker || 'N/A'} • ${data.quarter || 'Recent Filing'} • ${words} words analyzed`;
+
+      const sentEl = document.getElementById('res-sentiment');
+      sentEl.textContent = data.overall_sentiment || 'Neutral';
+      sentEl.className = 'inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold ' +
+        (data.overall_sentiment === 'Bullish' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
+         data.overall_sentiment === 'Bearish' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
+         'bg-slate-700 text-slate-200');
+
+      document.getElementById('res-confidence').textContent = `${data.confidence_score ?? 75}%`;
+      document.getElementById('res-risk').textContent = `${data.risk_score ?? 35}/100`;
+
+      const takeawaysEl = document.getElementById('res-takeaways');
+      takeawaysEl.innerHTML = (data.executive_takeaways || []).map(t => `<li>${t}</li>`).join('');
+
+      const kpisEl = document.getElementById('res-kpis');
+      kpisEl.innerHTML = (data.key_kpis || []).map(k => `
+        <div class="bg-slate-950 border border-slate-800 p-2 rounded">
+          <div class="text-slate-400">${k.metric}</div>
+          <div class="font-bold text-emerald-400">${k.value}</div>
+        </div>
+      `).join('');
+
+      const categories = [
+        ['Financial Performance', data.financial_performance],
+        ['Market Dynamics', data.market_dynamics],
+        ['Expansion Plans', data.expansion_plans],
+        ['Environmental & ESG Risks', data.environmental_risks],
+        ['Regulatory & Policy Changes', data.regulatory_or_policy_changes]
+      ];
+      document.getElementById('category-cards').innerHTML = categories.map(([title, body]) => `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2">${title}</h4>
+          <p class="text-sm text-slate-300 leading-relaxed">${body || 'Not specified.'}</p>
+        </div>
+      `).join('');
+
+      const r = data.radar_scores || {};
+      const ctx = document.getElementById('radarChart').getContext('2d');
+      if (radarChartInstance) radarChartInstance.destroy();
+      radarChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['Revenue Growth', 'Profitability', 'Market Position', 'Expansion', 'Regulatory Safety', 'ESG'],
+          datasets: [{
+            label: data.company_name,
+            data: [
+              r.revenue_growth || 70, r.profitability || 70, r.market_position || 70,
+              r.expansion_momentum || 70, r.regulatory_safety || 70, r.esg_sustainability || 70
+            ],
+            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            borderColor: 'rgb(16, 185, 129)',
+            pointBackgroundColor: 'rgb(16, 185, 129)'
+          }]
+        },
+        options: {
+          scales: { r: { min: 0, max: 100, grid: { color: '#1e293b' }, angleLines: { color: '#1e293b' } } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    async function loadHistory() {
+      const res = await fetch('/history');
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('history-count').textContent = `${data.count} saved`;
+      const list = document.getElementById('history-list');
+      list.innerHTML = data.reports.map(item => `
+        <button onclick="fetchReport(${item.id})" class="w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between transition">
+          <div>
+            <div class="font-medium text-slate-200">${item.company_name}</div>
+            <div class="text-slate-500">${item.ticker || ''} ${item.quarter || ''}</div>
+          </div>
+          <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-emerald-400">${item.overall_sentiment}</span>
+        </button>
+      `).join('');
+    }
+
+    async function fetchReport(id) {
+      const res = await fetch(`/history/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        renderDashboard(data);
+      }
+    }
+
+    document.getElementById('transcript-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Analyzing Transcript...';
+
+      try {
+        const fileInput = document.getElementById('transcript-file');
+        let response;
+
+        if (fileInput.files.length > 0) {
+          const formData = new FormData();
+          formData.append('company_name', document.getElementById('company-name').value);
+          formData.append('ticker', document.getElementById('ticker').value);
+          formData.append('quarter', document.getElementById('quarter').value);
+          formData.append('transcript_text', document.getElementById('transcript-text').value);
+          formData.append('file', fileInput.files[0]);
+          response = await fetch('/earnings_transcript_summary', { method: 'POST', body: formData });
+        } else {
+          response = await fetch('/earnings_transcript_summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              company_name: document.getElementById('company-name').value,
+              ticker: document.getElementById('ticker').value,
+              quarter: document.getElementById('quarter').value,
+              transcript_text: document.getElementById('transcript-text').value
+            })
+          });
+        }
+
+        const result = await response.json();
+        if (response.ok) {
+          renderDashboard(result);
+          loadHistory();
+        } else {
+          alert(result.error || 'Failed to analyze transcript.');
+        }
+      } catch (err) {
+        alert('Request error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Intelligence Extraction';
+      }
+    });
+
+    loadHistory();
+  </script>
+</body>
+</html>
