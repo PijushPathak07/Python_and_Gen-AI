@@ -2,7 +2,7 @@
 
 FinSight AI is a full-stack financial intelligence platform built with Python, Flask, SQLite, and Google Gemini. It ingests corporate earnings call transcripts (via raw text or PDF uploads) to extract structured institutional research across 5 core analytical pillars, multi-factor risk/growth radar scores, executive sentiment polarity, and quantitative financial KPIs.
 
-## 🚀 Key Engineering Highlights
+## Key Engineering Highlights
 
 This project was architected with a focus on latency reduction, API quota optimization, and deterministic fallbacks:
 
@@ -12,7 +12,7 @@ This project was architected with a focus on latency reduction, API quota optimi
 * **Local PDF & Text Ingestion:** Supports direct `.pdf` and `.txt` earnings filing uploads using `pypdf`.
 * **Deterministic Offline Unit Testing:** Comprehensive `unittest` suite using mock patches and isolated temporary SQLite databases for CI/CD readiness.
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
 +-------------------------------------------------------------------+
@@ -37,7 +37,7 @@ This project was architected with a focus on latency reduction, API quota optimi
 +--------------------------------+  +-------------------------------+
 ```
 
-## 📂 Codebase Overview
+## Codebase Overview
 
 * **`app.py`**: The core Flask application routing, validation, and request handling.
 * **`analyzer.py`**: Houses the dual-engine analysis logic (Gemini API Structured JSON + Local NLP Heuristics).
@@ -47,7 +47,7 @@ This project was architected with a focus on latency reduction, API quota optimi
 * **`test_api.py`**: Offline unit tests utilizing `unittest.mock`.
 * **`templates/index.html`**: A modern, dark-mode frontend dashboard to visualize the extracted intelligence.
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### `POST /earnings_transcript_summary`
 Analyzes a transcript (accepts JSON payload or `multipart/form-data` with a `.pdf` file). Returns a structured JSON payload containing 5-pillar insights, a calculated risk score, sentiment analysis, and a 6-factor radar chart matrix.
@@ -64,7 +64,7 @@ Compares two stored company reports side-by-side, returning quarter-over-quarter
 ### `GET /health`
 Returns the operational status of the API and the current cache size.
 
-## 💻 Quickstart / Local Setup
+## Quickstart / Local Setup
 
 1. **Clone the Repository:**
    ```bash
