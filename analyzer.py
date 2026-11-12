@@ -226,3 +226,240 @@ def analyze_earnings_transcript(
         "executive_takeaways": parsed.get("executive_takeaways", []),
         "nlp_metrics": nlp_metrics,
     }
+
+
+STOPWORDS = {
+    "what", "when", "where", "which", "who", "whom", "whose", "why", "how",
+    "did", "does", "do", "are", "is", "was", "were", "the", "and", "for",
+    "with", "about", "from", "into", "that", "this", "their", "they", "have",
+    "has", "had", "will", "would", "could", "should", "company", "say", "said",
+    "mention", "mentioned", "discuss", "discussed", "tell", "any", "much",
+}
+
+
+def answer_transcript_question(
+    company_name: str,
+    transcript_text: str,
+    question: str,
+    analysis_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Answer a question grounded strictly in the transcript with verbatim quote citations."""
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", transcript_text)
+        if len(s.strip()) > 15
+    ]
+
+    # Supplement with summary sentences if raw transcript text is very short
+    if not sentences:
+        for field in (
+            "financial_performance",
+            "market_dynamics",
+            "expansion_plans",
+            "environmental_risks",
+            "regulatory_or_policy_changes",
+        ):
+            val = analysis_context.get(field, "")
+            if val:
+                sentences.append(val)
+
+    q_words = [
+        w
+        for w in re.findall(r"\b\w+\b", question.lower())
+        if w not in STOPWORDS and len(w) > 2
+    ]
+
+    scored_sentences = []
+    for idx, sent in enumerate(sentences):
+        s_lower = sent.lower()
+        score = 0
+        for qw in q_words:
+            if qw in s_lower:
+                score += 3
+            elif len(qw) >= 4 and qw[:4] in s_lower:
+                score += 1
+        # Boost sentences containing numbers, percentages, or currency figures
+        if re.search(r"(\$|\d+%|\b\d+\b)", sent):
+            score += 1
+        scored_sentences.append((score, -idx, sent))
+
+    scored_sentences.sort(reverse=True)
+    top_matches = [s for score, _, s in scored_sentences if score > 0][:3]
+    if not top_matches and sentences:
+        top_matches = sentences[:2]
+
+    api_key = Config.GOOGLE_API_KEY
+    if api_key and api_key.startswith("AIza"):
+        try:
+            genai.configure(api_key=api_key)
+            prompt = f"""You are an Institutional Equity Research Assistant.
+Answer the user's question about {company_name} using ONLY the provided transcript.
+Return ONLY valid JSON with this exact structure:
+{{
+  "answer": "Concise, factual 2-3 sentence answer grounded strictly in the text.",
+  "citations": ["Exact verbatim sentence 1 from transcript", "Exact verbatim sentence 2"],
+  "confidence_score": 92
+}}
+
+Question: {question}
+
+Transcript:
+{transcript_text}
+"""
+            model = genai.GenerativeModel(Config.MODEL_NAME)
+            response = model.generate_content(prompt)
+            parsed = json.loads(_clean_json_text(response.text))
+            return {
+                "answer": parsed.get("answer", " ".join(top_matches[:2])),
+                "citations": parsed.get("citations", top_matches)[:3],
+                "confidence_score": int(parsed.get("confidence_score", 90)),
+                "grounding_mode": "gemini_grounded_rag",
+            }
+        except Exception as exc:
+            logger.warning("Gemini Q&A fallback triggered: %s", exc)
+
+    if top_matches:
+        synthesized_answer = (
+            f"Based on {company_name}'s filing: " + " ".join(top_matches[:2])
+        )
+        confidence = min(96, 76 + (len(top_matches) * 6))
+    else:
+        synthesized_answer = (
+            f"The transcript for {company_name} does not contain explicit figures "
+            "or direct statements addressing that specific question."
+        )
+        confidence = 50
+
+    return {
+        "answer": synthesized_answer,
+        "citations": top_matches,
+        "confidence_score": confidence,
+        "grounding_mode": "deterministic_citation_rag",
+    }
+
+
+HEDGING_LEXICON = [
+    "potentially",
+    "uncertain",
+    "headwinds",
+    "scrutinized",
+    "challenging",
+    "transitional",
+    "volatile",
+    "subject to",
+    "pressured",
+    "cautious",
+    "approximately",
+    "contingent",
+]
+
+CERTAINTY_LEXICON = [
+    "delivered",
+    "achieved",
+    "completed",
+    "confirmed",
+    "record",
+    "exceeded",
+    "expanded",
+    "committed",
+    "guaranteed",
+    "beating",
+]
+
+FORENSIC_PATTERNS = [
+    (
+        "Macro & Budget Headwinds",
+        "Medium",
+        ["headwinds", "scrutinized", "tight", "macroeconomic", "slowdown"],
+    ),
+    (
+        "Accounting & Tax Restructuring",
+        "Medium",
+        ["non-gaap", "restructuring", "adjusted", "capitalization", "write-down", "impairment"],
+    ),
+    (
+        "Regulatory & Compliance Exposure",
+        "High",
+        ["investigation", "litigation", "penalties", "subpoena", "tariff", "violation"],
+    ),
+    (
+        "Guidance Uncertainty",
+        "Low",
+        ["uncertain", "volatile", "visibility", "transitional", "cautious"],
+    ),
+]
+
+
+def run_forensic_red_flag_audit(
+    company_name: str, transcript_text: str, analysis_context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Forensic NLP scanner detecting executive hedging, evasion signals, and risk flags."""
+    source_text = transcript_text or " ".join(
+        str(analysis_context.get(k, ""))
+        for k in (
+            "financial_performance",
+            "market_dynamics",
+            "expansion_plans",
+            "environmental_risks",
+            "regulatory_or_policy_changes",
+        )
+    )
+    lowered = source_text.lower()
+    sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", source_text)
+        if len(s.strip()) > 15
+    ]
+
+    hedging_hits: Dict[str, int] = {}
+    for term in HEDGING_LEXICON:
+        count = len(re.findall(rf"\b{re.escape(term)}\b", lowered))
+        if count > 0:
+            hedging_hits[term] = count
+
+    certainty_count = sum(
+        len(re.findall(rf"\b{re.escape(term)}\b", lowered))
+        for term in CERTAINTY_LEXICON
+    )
+    hedging_count = sum(hedging_hits.values())
+    total_signals = max(1, hedging_count + certainty_count)
+    hedging_ratio = round((hedging_count / total_signals) * 100, 1)
+
+    red_flags = []
+    for category, severity, keywords in FORENSIC_PATTERNS:
+        for sent in sentences:
+            s_low = sent.lower()
+            matched_kw = [kw for kw in keywords if kw in s_low]
+            if matched_kw:
+                red_flags.append(
+                    {
+                        "category": category,
+                        "severity": severity,
+                        "signal": f"Detected forensic trigger term(s): {', '.join(matched_kw)}",
+                        "evidence_sentence": sent,
+                    }
+                )
+                break
+
+    # Compute overall Transparency Score (0 - 100)
+    penalty = (hedging_count * 4) + (len(red_flags) * 5)
+    boost = min(12, certainty_count * 2)
+    transparency_score = max(35, min(98, 90 - penalty + boost))
+
+    if transparency_score >= 78:
+        evasion_level = "Low"
+    elif transparency_score >= 58:
+        evasion_level = "Moderate"
+    else:
+        evasion_level = "High"
+
+    return {
+        "company_name": company_name,
+        "transparency_score": transparency_score,
+        "evasion_risk_level": evasion_level,
+        "hedging_word_count": hedging_count,
+        "certainty_word_count": certainty_count,
+        "hedging_ratio_pct": hedging_ratio,
+        "detected_hedging_terms": hedging_hits,
+        "red_flags": red_flags,
+    }

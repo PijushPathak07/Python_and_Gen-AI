@@ -85,3 +85,52 @@ class BatchTranscriptRequest(BaseModel):
     """Validated schema for concurrent multi-company batch transcript processing."""
 
     items: List[TranscriptRequest] = Field(..., min_length=1, max_length=5)
+
+
+class QuestionRequest(BaseModel):
+    """Validated schema for asking a grounded question against a stored transcript."""
+
+    question: str = Field(..., min_length=3, max_length=500)
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("Question cannot be empty")
+        return cleaned
+
+
+class GroundedAnswerResponse(BaseModel):
+    """Validated output schema for Grounded Q&A with exact verbatim quote citations."""
+
+    report_id: int
+    company_name: str
+    question: str
+    answer: str
+    citations: List[str] = Field(default_factory=list)
+    confidence_score: int = Field(default=85, ge=0, le=100)
+    grounding_mode: str = "deterministic_citation_rag"
+
+
+class ForensicFlag(BaseModel):
+    """Individual forensic or accounting risk signal detected in transcript."""
+
+    category: str
+    severity: Literal["Low", "Medium", "High"] = "Medium"
+    signal: str
+    evidence_sentence: str
+
+
+class ForensicAuditResponse(BaseModel):
+    """Validated output contract for Forensic Red-Flag & Management Hedging Detector."""
+
+    report_id: int
+    company_name: str
+    transparency_score: int = Field(default=85, ge=0, le=100)
+    evasion_risk_level: Literal["Low", "Moderate", "High"] = "Low"
+    hedging_word_count: int = 0
+    certainty_word_count: int = 0
+    hedging_ratio_pct: float = 0.0
+    detected_hedging_terms: Dict[str, int] = Field(default_factory=dict)
+    red_flags: List[ForensicFlag] = Field(default_factory=list)

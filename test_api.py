@@ -9,7 +9,8 @@ TEMP_DB = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
 TEMP_DB.close()
 Config.DATABASE_PATH = TEMP_DB.name
 
-from app import app  # noqa: E402
+import app as app_module  # noqa: E402
+from app import app, reset_rate_limiter  # noqa: E402
 from database import init_db  # noqa: E402
 
 
@@ -49,6 +50,8 @@ MOCK_ANALYSIS = {
 class FinSightAPITestSuite(unittest.TestCase):
     def setUp(self):
         init_db(Config.DATABASE_PATH)
+        reset_rate_limiter()
+        app_module.RATE_LIMIT_MAX_REQUESTS = 60
         self.client = app.test_client()
         self.client.testing = True
 
@@ -236,6 +239,82 @@ class FinSightAPITestSuite(unittest.TestCase):
         self.assertIn("total_reports_cached", data)
         self.assertIn("sentiment_breakdown", data)
         self.assertIn("estimated_api_tokens_saved", data)
+
+    @patch("app.analyze_earnings_transcript")
+    def test_13_grounded_qa_ask_endpoint(self, mock_analyze):
+        """Verify POST /ask/<id> returns grounded answers with verbatim quote citations."""
+        mock_analyze.return_value = dict(MOCK_ANALYSIS)
+        created = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Citation Corp",
+                "ticker": "CITE",
+                "quarter": "Q3 FY26",
+                "transcript_text": (
+                    "We delivered record quarterly revenue of $1.42 billion, up 24% YoY. "
+                    "Operating margin expanded by 320 basis points to 28.4%."
+                ),
+            },
+        ).get_json()
+
+        # Ask a specific question about revenue and margin
+        qa_res = self.client.post(
+            f"/ask/{created['id']}",
+            json={"question": "What was the quarterly revenue and operating margin?"},
+        )
+        self.assertEqual(qa_res.status_code, 200)
+        qa_data = qa_res.get_json()
+        self.assertEqual(qa_data["company_name"], "Citation Corp")
+        self.assertIn("$1.42 billion", qa_data["answer"])
+        self.assertGreaterEqual(len(qa_data["citations"]), 1)
+
+        # Verify 404 for non-existent report ID
+        not_found_res = self.client.post(
+            "/ask/99999", json={"question": "What was the revenue?"}
+        )
+        self.assertEqual(not_found_res.status_code, 404)
+
+    @patch("app.analyze_earnings_transcript")
+    def test_14_forensic_red_flag_audit_endpoint(self, mock_analyze):
+        """Verify GET /forensics/<id> detects hedging ratios and forensic risk signals."""
+        mock_analyze.return_value = dict(MOCK_ANALYSIS)
+        created = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Forensic Corp",
+                "ticker": "FRNS",
+                "quarter": "Q4 FY26",
+                "transcript_text": (
+                    "We delivered record revenue growth. However, mid-market budgets "
+                    "remain scrutinized due to macroeconomic headwinds and non-gaap restructuring."
+                ),
+            },
+        ).get_json()
+
+        res = self.client.get(f"/forensics/{created['id']}")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["company_name"], "Forensic Corp")
+        self.assertIn("transparency_score", data)
+        self.assertGreaterEqual(data["hedging_word_count"], 1)
+        self.assertGreaterEqual(len(data["red_flags"]), 1)
+
+    def test_15_rate_limiting_and_latency_headers_middleware(self):
+        """Verify X-Process-Time-Ms headers and 429 Too Many Requests enforcement."""
+        res = self.client.get("/health")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("X-Process-Time-Ms", res.headers)
+        self.assertIn("X-RateLimit-Limit", res.headers)
+        self.assertIn("X-RateLimit-Remaining", res.headers)
+
+        # Temporarily lower threshold to 2 requests to verify 429 enforcement
+        app_module.RATE_LIMIT_MAX_REQUESTS = 2
+        reset_rate_limiter()
+        self.client.get("/health")
+        self.client.get("/health")
+        blocked = self.client.get("/health")
+        self.assertEqual(blocked.status_code, 429)
+        self.assertIn("Rate limit exceeded", blocked.get_json()["error"])
 
 
 if __name__ == "__main__":

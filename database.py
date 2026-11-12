@@ -136,7 +136,7 @@ def get_all_reports(
 def get_report_by_id(
     report_id: int, db_path: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
-    """Retrieve the full JSON analysis for a specific report ID."""
+    """Retrieve the full JSON analysis and raw transcript text for a specific report ID."""
     with get_connection(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE id = ?", (report_id,)
@@ -147,6 +147,7 @@ def get_report_by_id(
         payload["id"] = row["id"]
         payload["cached"] = True
         payload["created_at"] = row["created_at"]
+        payload["transcript_text"] = row["transcript_text"] or ""
         return payload
 
 

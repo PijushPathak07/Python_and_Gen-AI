@@ -163,12 +163,68 @@
 
         <!-- 5 Core Category Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="category-cards"></div>
+
+        <!-- Forensic Red-Flag & Management Hedging Detector -->
+        <div class="bg-slate-900 border border-amber-500/30 rounded-xl p-6 space-y-4 shadow-lg">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-base font-bold text-amber-400">🔍 Forensic Red-Flag & Management Hedging Audit</h3>
+              <p class="text-xs text-slate-400">Lexical evasion scanner measuring executive certainty vs. hedging ratios and accounting/macro red flags.</p>
+            </div>
+            <div class="flex items-center gap-3">
+              <span id="forensic-score-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-emerald-300">
+                Transparency: --/100
+              </span>
+              <span id="forensic-risk-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-amber-300">
+                Evasion Risk: --
+              </span>
+            </div>
+          </div>
+          <div id="forensic-metrics-bar" class="grid grid-cols-3 gap-3 text-xs"></div>
+          <div id="forensic-flags-list" class="space-y-2 text-xs"></div>
+        </div>
+
+        <!-- Grounded Q&A: Chat with Filing (Exact Citations) -->
+        <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 space-y-4 shadow-lg">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-base font-bold text-emerald-400">💬 Chat with Filing — Grounded Q&A (Exact Quote Citations)</h3>
+              <p class="text-xs text-slate-400">Ask any specific question about this transcript. Answers are strictly grounded with verbatim sentence citations.</p>
+            </div>
+            <span class="text-[11px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full">
+              Anti-Hallucination Citation Mode
+            </span>
+          </div>
+
+          <!-- Quick Analyst Question Chips -->
+          <div class="flex flex-wrap gap-2 text-xs">
+            <button type="button" onclick="askPresetQuestion('What was the reported revenue growth, operating margin, and EPS?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
+              📈 Revenue, Margin & EPS?
+            </button>
+            <button type="button" onclick="askPresetQuestion('What expansion plans, capex, or new regions were announced?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
+              🚀 Expansion & CapEx Plans?
+            </button>
+            <button type="button" onclick="askPresetQuestion('What regulatory compliance or environmental sustainability initiatives were discussed?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
+              ⚖️ Regulatory & ESG Risks?
+            </button>
+          </div>
+
+          <form id="qa-form" class="flex gap-2">
+            <input type="text" id="qa-question-input" required placeholder="Ask a question about this company's earnings call..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+            <button type="submit" id="qa-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
+              Ask Filing
+            </button>
+          </form>
+
+          <div id="qa-History-thread" class="space-y-3 text-xs"></div>
+        </div>
       </div>
     </section>
   </main>
 
   <script>
     let radarChartInstance = null;
+    let currentReportId = null;
 
     const SAMPLE_TRANSCRIPT = `Good evening everyone, and welcome to Apex Cloud Systems Q3 FY26 Earnings Call.
 We delivered record quarterly revenue of $1.42 billion, representing 24% year-over-year growth, driven by strong enterprise adoption of our AI data warehouse platform. Operating margin expanded by 320 basis points to 28.4%, and diluted EPS reached $1.18, beating consensus guidance. Free cash flow rose 31% YoY to $410 million.
@@ -208,9 +264,12 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
 
       const exportBox = document.getElementById('export-actions');
       if (data.id) {
+        currentReportId = data.id;
         exportBox.classList.remove('hidden');
         document.getElementById('export-md-link').href = `/export/${data.id}?format=md`;
         document.getElementById('export-csv-link').href = `/export/${data.id}?format=csv`;
+        document.getElementById('qa-History-thread').innerHTML = '';
+        loadForensics(data.id);
       } else {
         exportBox.classList.add('hidden');
       }
@@ -306,6 +365,109 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
         renderDashboard(data);
       }
     }
+
+    async function loadForensics(reportId) {
+      const res = await fetch(`/forensics/${reportId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      document.getElementById('forensic-score-badge').textContent = `Transparency: ${data.transparency_score}/100`;
+      document.getElementById('forensic-risk-badge').textContent = `Evasion Risk: ${data.evasion_risk_level}`;
+
+      document.getElementById('forensic-metrics-bar').innerHTML = `
+        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
+          <div class="text-slate-400">Executive Certainty Signals</div>
+          <div class="text-sm font-bold text-emerald-400">${data.certainty_word_count} hits</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
+          <div class="text-slate-400">Hedging / Qualifier Terms</div>
+          <div class="text-sm font-bold text-amber-400">${data.hedging_word_count} hits</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
+          <div class="text-slate-400">Hedging Ratio</div>
+          <div class="text-sm font-bold text-sky-400">${data.hedging_ratio_pct}%</div>
+        </div>
+      `;
+
+      const flagsEl = document.getElementById('forensic-flags-list');
+      if (!data.red_flags || data.red_flags.length === 0) {
+        flagsEl.innerHTML = '<div class="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg">No material accounting or evasion red flags detected in transcript.</div>';
+      } else {
+        flagsEl.innerHTML = data.red_flags.map(f => `
+          <div class="bg-slate-950 border border-slate-800 p-3 rounded-lg space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-amber-300">${f.category}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">${f.severity} Severity</span>
+            </div>
+            <div class="text-slate-400">${f.signal}</div>
+            <blockquote class="border-l-2 border-amber-500/60 pl-2 italic text-slate-300">"${f.evidence_sentence}"</blockquote>
+          </div>
+        `).join('');
+      }
+    }
+
+    function askPresetQuestion(questionText) {
+      const input = document.getElementById('qa-question-input');
+      input.value = questionText;
+      document.getElementById('qa-form').requestSubmit();
+    }
+
+    document.getElementById('qa-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentReportId) return;
+      const input = document.getElementById('qa-question-input');
+      const question = input.value.trim();
+      if (!question) return;
+
+      const btn = document.getElementById('qa-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Retrieving...';
+
+      try {
+        const res = await fetch(`/ask/${currentReportId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+        const data = await res.json();
+        const thread = document.getElementById('qa-History-thread');
+
+        if (!res.ok) {
+          thread.insertAdjacentHTML('afterbegin', `
+            <div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-lg">
+              ${data.error || 'Failed to answer question.'}
+            </div>
+          `);
+          return;
+        }
+
+        const citationsHtml = (data.citations || []).map(c => `
+          <blockquote class="border-l-2 border-emerald-500 pl-2.5 py-0.5 text-slate-400 italic bg-slate-900/70 rounded-r">
+            "${c}"
+          </blockquote>
+        `).join('');
+
+        thread.insertAdjacentHTML('afterbegin', `
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-emerald-300">Q: ${data.question}</span>
+              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
+                Grounding Confidence: ${data.confidence_score}%
+              </span>
+            </div>
+            <p class="text-slate-200 text-sm leading-relaxed">${data.answer}</p>
+            <div class="space-y-1.5 pt-1">
+              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Verbatim Source Citations:</div>
+              ${citationsHtml || '<div class="text-slate-500">No direct sentence citation matched.</div>'}
+            </div>
+          </div>
+        `);
+        input.value = '';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ask Filing';
+      }
+    });
 
     document.getElementById('rag-search-form').addEventListener('submit', async (e) => {
       e.preventDefault();

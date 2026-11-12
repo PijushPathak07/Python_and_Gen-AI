@@ -1,13 +1,19 @@
 import csv
 import io
 import logging
+import time
+from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional, Tuple
-from flask import Flask, Response, jsonify, render_template, request
+from typing import Any, Deque, Dict, Optional, Tuple
+from flask import Flask, Response, g, jsonify, render_template, request
 from flask_cors import CORS
 from pydantic import ValidationError
 
-from analyzer import analyze_earnings_transcript
+from analyzer import (
+    analyze_earnings_transcript,
+    answer_transcript_question,
+    run_forensic_red_flag_audit,
+)
 from database import (
     compute_transcript_hash,
     delete_report_by_id,
@@ -20,7 +26,14 @@ from database import (
     search_reports_rag,
 )
 from pdf_parser import extract_text_from_upload, normalize_transcript_text
-from schemas import AnalysisResponse, BatchTranscriptRequest, TranscriptRequest
+from schemas import (
+    AnalysisResponse,
+    BatchTranscriptRequest,
+    ForensicAuditResponse,
+    GroundedAnswerResponse,
+    QuestionRequest,
+    TranscriptRequest,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +45,56 @@ app = Flask(__name__)
 CORS(app)
 
 init_db()
+
+# In-Memory Token-Bucket Rate Limiter State (Per IP)
+RATE_LIMIT_MAX_REQUESTS = 60
+RATE_LIMIT_WINDOW_SECONDS = 60
+_ip_request_log: Dict[str, Deque[float]] = defaultdict(deque)
+
+
+def reset_rate_limiter() -> None:
+    """Clear in-memory rate limit buckets (used in unit tests)."""
+    _ip_request_log.clear()
+
+
+@app.before_request
+def before_request_middleware():
+    """Start high-precision latency timer and enforce per-IP token-bucket rate limiting."""
+    g.start_time = time.perf_counter()
+    client_ip = request.remote_addr or "127.0.0.1"
+    now = time.time()
+
+    bucket = _ip_request_log[client_ip]
+    while bucket and (now - bucket[0]) > RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+
+    if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+        g.rate_limit_remaining = 0
+        return (
+            jsonify(
+                {
+                    "error": "Rate limit exceeded. Please retry after 60 seconds.",
+                    "retry_after_seconds": RATE_LIMIT_WINDOW_SECONDS,
+                }
+            ),
+            429,
+        )
+
+    bucket.append(now)
+    g.rate_limit_remaining = max(0, RATE_LIMIT_MAX_REQUESTS - len(bucket))
+
+
+@app.after_request
+def after_request_middleware(response: Response) -> Response:
+    """Attach execution latency (ms) and rate-limit observability headers to every response."""
+    elapsed_ms = (
+        (time.perf_counter() - getattr(g, "start_time", time.perf_counter())) * 1000.0
+    )
+    remaining = getattr(g, "rate_limit_remaining", RATE_LIMIT_MAX_REQUESTS)
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_MAX_REQUESTS)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    return response
 
 
 def validate_input_payload(
@@ -235,6 +298,62 @@ def system_metrics():
     """Return real-time observability metrics and token savings across the SQLite cache."""
     telemetry = get_system_telemetry()
     return jsonify(telemetry), 200
+
+
+@app.route("/ask/<int:report_id>", methods=["POST"])
+def ask_filing_question(report_id: int):
+    """Grounded Q&A endpoint: answer natural-language questions with verbatim transcript citations."""
+    report = get_report_by_id(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    raw_data = request.get_json(silent=True)
+    if not raw_data or "question" not in raw_data:
+        return jsonify({"error": "Missing required field: question"}), 400
+
+    try:
+        q_req = QuestionRequest(**raw_data)
+    except ValidationError as exc:
+        first_err = exc.errors()[0]
+        return jsonify({"error": first_err.get("msg", "Invalid question")}), 400
+
+    qa_result = answer_transcript_question(
+        company_name=report["company_name"],
+        transcript_text=report.get("transcript_text", ""),
+        question=q_req.question,
+        analysis_context=report,
+    )
+
+    validated_qa = GroundedAnswerResponse(
+        report_id=report_id,
+        company_name=report["company_name"],
+        question=q_req.question,
+        answer=qa_result["answer"],
+        citations=qa_result["citations"],
+        confidence_score=qa_result["confidence_score"],
+        grounding_mode=qa_result["grounding_mode"],
+    ).model_dump()
+
+    return jsonify(validated_qa), 200
+
+
+@app.route("/forensics/<int:report_id>", methods=["GET"])
+def forensic_audit_endpoint(report_id: int):
+    """Run Forensic Red-Flag & Management Hedging NLP Audit on a stored transcript."""
+    report = get_report_by_id(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    audit_raw = run_forensic_red_flag_audit(
+        company_name=report["company_name"],
+        transcript_text=report.get("transcript_text", ""),
+        analysis_context=report,
+    )
+    validated_audit = ForensicAuditResponse(
+        report_id=report_id,
+        **audit_raw,
+    ).model_dump()
+    return jsonify(validated_audit), 200
 
 
 @app.route("/search", methods=["GET"])
