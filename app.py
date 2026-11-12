@@ -1,6 +1,9 @@
+import csv
+import io
 import logging
-from typing import Optional, Tuple
-from flask import Flask, jsonify, render_template, request
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, Optional, Tuple
+from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS
 from pydantic import ValidationError
 
@@ -11,12 +14,13 @@ from database import (
     get_all_reports,
     get_cached_report,
     get_report_by_id,
+    get_system_telemetry,
     init_db,
     save_report,
     search_reports_rag,
 )
 from pdf_parser import extract_text_from_upload, normalize_transcript_text
-from schemas import AnalysisResponse, TranscriptRequest
+from schemas import AnalysisResponse, BatchTranscriptRequest, TranscriptRequest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,6 +55,43 @@ def validate_input_payload(
         # Strip Pydantic's "Value error, " prefix for clean API error messages
         cleaned_msg = msg.replace("Value error, ", "")
         return None, cleaned_msg
+
+
+def _process_single_transcript_item(validated_req: TranscriptRequest) -> Dict[str, Any]:
+    """Helper to process a single validated TranscriptRequest (used by single & concurrent batch endpoints)."""
+    company_name = validated_req.company_name
+    ticker = validated_req.ticker
+    quarter = validated_req.quarter
+    transcript_text = normalize_transcript_text(validated_req.transcript_text)
+
+    transcript_hash = compute_transcript_hash(company_name, transcript_text)
+    cached = get_cached_report(transcript_hash)
+    if cached:
+        logger.info("Serving SHA-256 cached report for %s", company_name)
+        return cached
+
+    raw_analysis = analyze_earnings_transcript(
+        company_name=company_name,
+        transcript_text=transcript_text,
+        ticker=ticker,
+        quarter=quarter,
+    )
+    raw_analysis["company_name"] = company_name
+    raw_analysis["ticker"] = ticker
+    raw_analysis["quarter"] = quarter
+    validated_output = AnalysisResponse(**raw_analysis).model_dump()
+
+    report_id = save_report(
+        company_name=company_name,
+        ticker=ticker,
+        quarter=quarter,
+        transcript_hash=transcript_hash,
+        analysis_data=validated_output,
+        transcript_text=transcript_text,
+    )
+    validated_output["id"] = report_id
+    validated_output["cached"] = False
+    return validated_output
 
 
 @app.route("/", methods=["GET"])
@@ -91,41 +132,109 @@ def summarize_transcript():
         if error_message or validated_req is None:
             return jsonify({"error": error_message}), 400
 
-        company_name = validated_req.company_name
-        ticker = validated_req.ticker
-        quarter = validated_req.quarter
-        transcript_text = normalize_transcript_text(validated_req.transcript_text)
-
-        transcript_hash = compute_transcript_hash(company_name, transcript_text)
-        cached = get_cached_report(transcript_hash)
-        if cached:
-            logger.info("Serving SHA-256 cached report for %s", company_name)
-            return jsonify(cached), 200
-
-        raw_analysis = analyze_earnings_transcript(
-            company_name=company_name,
-            transcript_text=transcript_text,
-            ticker=ticker,
-            quarter=quarter,
-        )
-        # Validate output structure via Pydantic AnalysisResponse model
-        validated_output = AnalysisResponse(**raw_analysis).model_dump()
-
-        report_id = save_report(
-            company_name=company_name,
-            ticker=ticker,
-            quarter=quarter,
-            transcript_hash=transcript_hash,
-            analysis_data=validated_output,
-            transcript_text=transcript_text,
-        )
-        validated_output["id"] = report_id
-        validated_output["cached"] = False
-        return jsonify(validated_output), 200
+        result = _process_single_transcript_item(validated_req)
+        return jsonify(result), 200
 
     except Exception as exc:
         logger.exception("Error processing transcript summary")
         return jsonify({"error": f"Internal server error: {str(exc)}"}), 500
+
+
+@app.route("/batch_analyze", methods=["POST"])
+def batch_analyze_transcripts():
+    """Concurrently analyze up to 5 earnings transcripts in parallel using ThreadPoolExecutor."""
+    raw_data = request.get_json(silent=True)
+    if not raw_data or "items" not in raw_data:
+        return jsonify({"error": "Payload must contain an 'items' list of transcripts"}), 400
+
+    try:
+        batch_req = BatchTranscriptRequest(**raw_data)
+    except ValidationError as exc:
+        first_err = exc.errors()[0]
+        return jsonify({"error": first_err.get("msg", "Invalid batch payload")}), 400
+
+    with ThreadPoolExecutor(max_workers=min(5, len(batch_req.items))) as executor:
+        results = list(executor.map(_process_single_transcript_item, batch_req.items))
+
+    return (
+        jsonify(
+            {
+                "batch_count": len(results),
+                "results": results,
+            }
+        ),
+        200,
+    )
+
+
+@app.route("/export/<int:report_id>", methods=["GET"])
+def export_report(report_id: int):
+    """Export a stored intelligence report as an Executive Markdown (.md) or CSV (.csv) file."""
+    report = get_report_by_id(report_id)
+    if not report:
+        return jsonify({"error": "Report not found"}), 404
+
+    fmt = request.args.get("format", "md").lower().strip()
+    safe_name = report["company_name"].lower().replace(" ", "_")
+
+    if fmt == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Field", "Value"])
+        writer.writerow(["Company Name", report.get("company_name", "")])
+        writer.writerow(["Ticker", report.get("ticker", "")])
+        writer.writerow(["Quarter", report.get("quarter", "")])
+        writer.writerow(["Overall Sentiment", report.get("overall_sentiment", "")])
+        writer.writerow(["Confidence Score", report.get("confidence_score", "")])
+        writer.writerow(["Risk Score", report.get("risk_score", "")])
+        writer.writerow(["Financial Performance", report.get("financial_performance", "")])
+        writer.writerow(["Market Dynamics", report.get("market_dynamics", "")])
+        writer.writerow(["Expansion Plans", report.get("expansion_plans", "")])
+        writer.writerow(["Environmental Risks", report.get("environmental_risks", "")])
+        writer.writerow(["Regulatory Changes", report.get("regulatory_or_policy_changes", "")])
+        return Response(
+            output.getvalue(),
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={safe_name}_report.csv"},
+        )
+
+    # Default to Executive Markdown (.md) brief
+    takeaways = "\n".join(f"- {t}" for t in report.get("executive_takeaways", []))
+    md_content = f"""# {report.get('company_name')} ({report.get('ticker') or 'N/A'}) — {report.get('quarter') or 'Earnings Brief'}
+
+**Overall Sentiment:** {report.get('overall_sentiment')} | **Confidence:** {report.get('confidence_score')}% | **Risk Index:** {report.get('risk_score')}/100
+
+## Executive Takeaways
+{takeaways}
+
+## 5-Pillar Institutional Summary
+### 1. Financial Performance
+{report.get('financial_performance')}
+
+### 2. Market Dynamics
+{report.get('market_dynamics')}
+
+### 3. Expansion Plans
+{report.get('expansion_plans')}
+
+### 4. Environmental & ESG Risks
+{report.get('environmental_risks')}
+
+### 5. Regulatory & Policy Changes
+{report.get('regulatory_or_policy_changes')}
+"""
+    return Response(
+        md_content,
+        mimetype="text/markdown",
+        headers={"Content-Disposition": f"attachment; filename={safe_name}_brief.md"},
+    )
+
+
+@app.route("/metrics", methods=["GET"])
+def system_metrics():
+    """Return real-time observability metrics and token savings across the SQLite cache."""
+    telemetry = get_system_telemetry()
+    return jsonify(telemetry), 200
 
 
 @app.route("/search", methods=["GET"])

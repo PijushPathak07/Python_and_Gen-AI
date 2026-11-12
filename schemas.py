@@ -79,3 +79,9 @@ class AnalysisResponse(BaseModel):
     key_kpis: List[KPIItem] = Field(default_factory=list)
     executive_takeaways: List[str] = Field(default_factory=list)
     nlp_metrics: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BatchTranscriptRequest(BaseModel):
+    """Validated schema for concurrent multi-company batch transcript processing."""
+
+    items: List[TranscriptRequest] = Field(..., min_length=1, max_length=5)

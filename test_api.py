@@ -180,6 +180,63 @@ class FinSightAPITestSuite(unittest.TestCase):
         self.assertEqual(docs_res.status_code, 200)
         self.assertIn(b"SwaggerUIBundle", docs_res.data)
 
+    @patch("app.analyze_earnings_transcript")
+    def test_10_concurrent_batch_analyze_endpoint(self, mock_analyze):
+        """Verify POST /batch_analyze processes multiple transcripts concurrently."""
+        mock_analyze.return_value = dict(MOCK_ANALYSIS)
+        batch_payload = {
+            "items": [
+                {
+                    "company_name": "Batch Corp One",
+                    "ticker": "BC1",
+                    "quarter": "Q1 FY26",
+                    "transcript_text": "Batch Corp One delivered 18% revenue growth.",
+                },
+                {
+                    "company_name": "Batch Corp Two",
+                    "ticker": "BC2",
+                    "quarter": "Q1 FY26",
+                    "transcript_text": "Batch Corp Two expanded operating margins by 200 bps.",
+                },
+            ]
+        }
+        res = self.client.post("/batch_analyze", json=batch_payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["batch_count"], 2)
+        self.assertEqual(len(data["results"]), 2)
+
+    @patch("app.analyze_earnings_transcript")
+    def test_11_export_markdown_and_csv_endpoints(self, mock_analyze):
+        """Verify GET /export/<id> exports both Markdown (.md) and CSV (.csv) institutional reports."""
+        mock_analyze.return_value = dict(MOCK_ANALYSIS)
+        created = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Exportable Tech",
+                "transcript_text": "Exportable Tech achieved strong free cash flow.",
+            },
+        ).get_json()
+
+        md_res = self.client.get(f"/export/{created['id']}?format=md")
+        self.assertEqual(md_res.status_code, 200)
+        self.assertIn("text/markdown", md_res.content_type)
+        self.assertIn(b"# Exportable Tech", md_res.data)
+
+        csv_res = self.client.get(f"/export/{created['id']}?format=csv")
+        self.assertEqual(csv_res.status_code, 200)
+        self.assertIn("text/csv", csv_res.content_type)
+        self.assertIn(b"Overall Sentiment", csv_res.data)
+
+    def test_12_system_telemetry_metrics_endpoint(self):
+        """Verify GET /metrics returns aggregate system telemetry and token savings."""
+        res = self.client.get("/metrics")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("total_reports_cached", data)
+        self.assertIn("sentiment_breakdown", data)
+        self.assertIn("estimated_api_tokens_saved", data)
+
 
 if __name__ == "__main__":
     unittest.main()

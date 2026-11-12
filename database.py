@@ -221,3 +221,48 @@ def search_reports_rag(
     # Sort descending by relevance hits
     results.sort(key=lambda r: r["relevance_hits"], reverse=True)
     return results
+
+
+def get_system_telemetry(db_path: Optional[str] = None) -> Dict[str, Any]:
+    """Compute aggregate observability metrics across all cached reports."""
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT overall_sentiment, confidence_score, risk_score, transcript_text
+            FROM reports
+            """
+        ).fetchall()
+
+        total = len(rows)
+        if total == 0:
+            return {
+                "total_reports_cached": 0,
+                "sentiment_breakdown": {"Bullish": 0, "Neutral": 0, "Bearish": 0},
+                "average_confidence_score": 0.0,
+                "average_risk_score": 0.0,
+                "estimated_api_tokens_saved": 0,
+            }
+
+        sentiment_counts = {"Bullish": 0, "Neutral": 0, "Bearish": 0}
+        total_conf = 0
+        total_risk = 0
+        total_chars = 0
+
+        for r in rows:
+            sent = r["overall_sentiment"]
+            if sent in sentiment_counts:
+                sentiment_counts[sent] += 1
+            total_conf += int(r["confidence_score"] or 0)
+            total_risk += int(r["risk_score"] or 0)
+            total_chars += len(r["transcript_text"] or "")
+
+        # Estimate ~4 chars per token saved across 5 pillars
+        estimated_tokens_saved = max(500, (total_chars // 4) * 4)
+
+        return {
+            "total_reports_cached": total,
+            "sentiment_breakdown": sentiment_counts,
+            "average_confidence_score": round(total_conf / total, 1),
+            "average_risk_score": round(total_risk / total, 1),
+            "estimated_api_tokens_saved": estimated_tokens_saved,
+        }
