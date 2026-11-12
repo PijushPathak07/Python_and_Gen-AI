@@ -1,0 +1,38 @@
+name: FinSight AI — CI & Unit Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-and-verify:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify Syntax & Compile Python Modules
+        run: |
+          python -m py_compile app.py analyzer.py database.py pdf_parser.py config.py test_api.py
+
+      - name: Run Offline Unit Test Suite
+        run: |
+          python -m unittest test_api.py -v

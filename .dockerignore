@@ -1,0 +1,11 @@
+venv/
+pycache/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+.env
+*.db
+.vscode/
+README.md
