@@ -8,7 +8,7 @@
 
 FinSight AI is an enterprise-grade financial intelligence platform built with Python, Flask, Pydantic v2, SQLite, and Google Gemini. Designed for institutional equity research, it ingests corporate earnings call transcripts (via raw text, PDF uploads, or concurrent batch payloads) to generate 5-pillar analytical summaries, 6-factor risk/growth radar matrices, forensic management hedging audits, grounded Q&A with verbatim sentence citations, multi-company sector peer benchmarks, multi-quarter guidance credibility audits, and live U.S. SEC EDGAR filing lookups.
 
-**[Read the Complete Project Documentation & Technical Guide (PDF)](./Media/Documentation/FinSight%20AI%20Complete%20Project%20Documentation.pdf)**
+**[Read the Complete Project Documentation & Technical Guide (PDF)](./Media/Documentation/Finsight%20AI%20Complete%20Project%20Documentation.pdf)**
 
 ---
 
