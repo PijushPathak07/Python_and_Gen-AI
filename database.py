@@ -267,3 +267,98 @@ def get_system_telemetry(db_path: Optional[str] = None) -> Dict[str, Any]:
             "average_risk_score": round(total_risk / total, 1),
             "estimated_api_tokens_saved": estimated_tokens_saved,
         }
+
+
+def compute_sector_benchmark(
+    report_ids: Optional[List[int]] = None,
+    limit: int = 10,
+    db_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Aggregate multiple stored company filings into a ranked Sector Peer Benchmark Matrix."""
+    with get_connection(db_path) as conn:
+        if report_ids:
+            placeholders = ",".join("?" for _ in report_ids)
+            rows = conn.execute(
+                f"SELECT * FROM reports WHERE id IN ({placeholders})",
+                tuple(report_ids),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM reports ORDER BY id DESC LIMIT ?", (limit,)
+            ).fetchall()
+
+    if not rows:
+        return {
+            "peer_count": 0,
+            "sector_leader": "N/A",
+            "lowest_risk_peer": "N/A",
+            "sector_averages": {},
+            "peers": [],
+        }
+
+    radar_keys = [
+        "revenue_growth",
+        "profitability",
+        "market_position",
+        "expansion_momentum",
+        "regulatory_safety",
+        "esg_sustainability",
+    ]
+    radar_sums = {k: 0.0 for k in radar_keys}
+    risk_sum = 0.0
+    conf_sum = 0.0
+    peers: List[Dict[str, Any]] = []
+
+    for r in rows:
+        payload = json.loads(r["analysis_json"])
+        r_scores = payload.get("radar_scores", {})
+        clean_radar = {k: int(r_scores.get(k, 75)) for k in radar_keys}
+        for k in radar_keys:
+            radar_sums[k] += clean_radar[k]
+
+        risk_val = int(r["risk_score"] or 35)
+        conf_val = int(r["confidence_score"] or 75)
+        risk_sum += risk_val
+        conf_sum += conf_val
+
+        radar_avg = sum(clean_radar.values()) / len(radar_keys)
+        # Composite score rewards high 6-factor radar performance and penalizes elevated risk
+        composite = round((radar_avg * 0.8) + ((100 - risk_val) * 0.2), 1)
+
+        peers.append(
+            {
+                "id": r["id"],
+                "rank": 1,
+                "company_name": r["company_name"],
+                "ticker": r["ticker"] or "",
+                "quarter": r["quarter"] or "",
+                "overall_sentiment": r["overall_sentiment"],
+                "confidence_score": conf_val,
+                "risk_score": risk_val,
+                "composite_score": composite,
+                "radar_scores": clean_radar,
+            }
+        )
+
+    # Sort descending by composite_score, then ascending by risk_score
+    peers.sort(key=lambda x: (-x["composite_score"], x["risk_score"]))
+    for idx, peer in enumerate(peers, start=1):
+        peer["rank"] = idx
+
+    count = len(peers)
+    sector_averages = {k: round(radar_sums[k] / count, 1) for k in radar_keys}
+    sector_averages["risk_score"] = round(risk_sum / count, 1)
+    sector_averages["confidence_score"] = round(conf_sum / count, 1)
+    sector_averages["composite_score"] = round(
+        sum(p["composite_score"] for p in peers) / count, 1
+    )
+
+    lowest_risk_peer = min(peers, key=lambda x: x["risk_score"])["company_name"]
+
+    return {
+        "peer_count": count,
+        "sector_leader": peers[0]["company_name"],
+        "lowest_risk_peer": lowest_risk_peer,
+        "sector_averages": sector_averages,
+        "peers": peers,
+    }

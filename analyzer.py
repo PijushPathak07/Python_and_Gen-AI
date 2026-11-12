@@ -463,3 +463,119 @@ def run_forensic_red_flag_audit(
         "detected_hedging_terms": hedging_hits,
         "red_flags": red_flags,
     }
+
+
+def evaluate_guidance_credibility(
+    prev_report: Dict[str, Any], curr_report: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Audit prior-quarter forward guidance/expansion promises against current-quarter reality."""
+    company_name = curr_report.get("company_name") or prev_report.get("company_name", "Company")
+    prev_quarter = prev_report.get("quarter") or "Prior Filing"
+    curr_quarter = curr_report.get("quarter") or "Current Filing"
+
+    prev_source = (
+        f"{prev_report.get('expansion_plans', '')} "
+        f"{prev_report.get('financial_performance', '')} "
+        f"{prev_report.get('transcript_text', '')}"
+    ).strip()
+    curr_source = (
+        f"{curr_report.get('financial_performance', '')} "
+        f"{curr_report.get('expansion_plans', '')} "
+        f"{curr_report.get('transcript_text', '')}"
+    ).strip()
+
+    prev_sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", prev_source)
+        if len(s.strip()) > 20
+    ]
+    curr_sentences = [
+        s.strip()
+        for s in re.split(r"(?<=[.!?])\s+", curr_source)
+        if len(s.strip()) > 20
+    ]
+
+    forward_keywords = [
+        "launch", "launching", "expect", "guidance", "target", "invest",
+        "investing", "plan", "planning", "next quarter", "pipeline", "scaling", "will",
+    ]
+    promises = [
+        s for s in prev_sentences if any(k in s.lower() for k in forward_keywords)
+    ][:3]
+    if not promises and prev_sentences:
+        promises = prev_sentences[:2]
+
+    audited_items = []
+    delivered_count = 0
+
+    for promise in promises:
+        p_words = [
+            w
+            for w in re.findall(r"\b\w+\b", promise.lower())
+            if w not in STOPWORDS and len(w) > 3
+        ]
+        best_match = ""
+        best_overlap = 0
+        for c_sent in curr_sentences:
+            c_low = c_sent.lower()
+            overlap = sum(1 for w in p_words if w in c_low)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_match = c_sent
+
+        if not best_match and curr_sentences:
+            best_match = curr_sentences[0]
+
+        outcome_low = best_match.lower()
+        if any(
+            w in outcome_low
+            for w in ["delivered", "achieved", "record", "completed", "grew", "expanded", "rose"]
+        ) or best_overlap >= 2:
+            status = "Delivered"
+            delivered_count += 1
+        elif any(w in outcome_low for w in ["delay", "missed", "decline", "headwinds"]):
+            status = "Missed / Pivoted"
+        else:
+            status = "In Progress"
+            delivered_count += 0.5
+
+        audited_items.append(
+            {
+                "prior_promise": promise,
+                "actual_outcome": best_match or "Execution metrics reported in current period summary.",
+                "status": status,
+            }
+        )
+
+    total_p = max(1, len(audited_items))
+    base_ratio = delivered_count / total_p
+    sentiment_bonus = 6 if curr_report.get("overall_sentiment") == "Bullish" else 0
+    risk_delta = int(prev_report.get("risk_score", 35)) - int(curr_report.get("risk_score", 35))
+    credibility_score = int(
+        max(40, min(98, round(base_ratio * 82) + 10 + sentiment_bonus + max(-8, min(8, risk_delta))))
+    )
+
+    if credibility_score >= 80:
+        grade = "High Credibility"
+    elif credibility_score >= 60:
+        grade = "Moderate Execution"
+    else:
+        grade = "Execution Deficit"
+
+    summary = (
+        f"Audited {len(audited_items)} forward-looking commitment(s) from {prev_quarter} "
+        f"against {curr_quarter} actuals for {company_name}, yielding a {credibility_score}/100 "
+        f"({grade}) execution rating."
+    )
+
+    return {
+        "company_name": company_name,
+        "previous_report_id": int(prev_report.get("id", 0)),
+        "current_report_id": int(curr_report.get("id", 0)),
+        "previous_quarter": prev_quarter,
+        "current_quarter": curr_quarter,
+        "credibility_score": credibility_score,
+        "execution_grade": grade,
+        "promises_audited": audited_items,
+        "executive_summary": summary,
+    }

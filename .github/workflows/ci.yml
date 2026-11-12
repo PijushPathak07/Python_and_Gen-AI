@@ -31,7 +31,7 @@ jobs:
 
       - name: Verify Syntax & Compile Python Modules
         run: |
-          python -m py_compile app.py analyzer.py database.py pdf_parser.py config.py schemas.py test_api.py
+          python -m py_compile app.py analyzer.py database.py pdf_parser.py config.py schemas.py sec_connector.py test_api.py
 
       - name: Run Offline Unit Test Suite
         run: |

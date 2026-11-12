@@ -1,91 +1,115 @@
-# FinSight AI — Enterprise Earnings Call Intelligence & Risk Engine
+# FinSight AI — Institutional Earnings Call Intelligence, Forensic NLP & SEC EDGAR Platform
 
 ![CI Status](https://github.com/PijushPathak07/Python_and_Gen-AI/actions/workflows/ci.yml/badge.svg)
 ![Python 3.10 | 3.11](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue)
 ![Pydantic v2](https://img.shields.io/badge/validation-Pydantic%20v2-emerald)
+![Unit Tests](https://img.shields.io/badge/tests-18%20passed-success)
 ![Docker Ready](https://img.shields.io/badge/container-Docker%20%2B%20Gunicorn-sky)
 
-FinSight AI is a production-grade financial intelligence platform built with Python, Flask, Pydantic v2, SQLite, and Google Gemini. It ingests corporate earnings call transcripts (via raw text or PDF uploads) to extract structured institutional research across 5 core analytical pillars, multi-factor risk/growth radar scores, full-text RAG search snippets, and quarter-over-quarter (QoQ) comparative risk deltas.
+FinSight AI is an enterprise-grade financial intelligence platform built with Python, Flask, Pydantic v2, SQLite, and Google Gemini. Designed for institutional equity research, it ingests corporate earnings call transcripts (via raw text, PDF uploads, or concurrent batch payloads) to generate 5-pillar analytical summaries, 6-factor risk/growth radar matrices, forensic management hedging audits, grounded Q&A with verbatim sentence citations, multi-company sector peer benchmarks, multi-quarter guidance credibility audits, and live U.S. SEC EDGAR filing lookups.
 
-## Key Engineering Highlights
+**[Read the Complete Project Documentation & Technical Guide (PDF)](./Media/Documentation/FinSight%20AI%20Complete%20Project%20Documentation.pdf)**
 
-* **80% API Latency & Quota Reduction:** Replaced sequential LLM calls with a single structured JSON schema extraction pass.
-* **Content-Addressable SHA-256 Caching:** Incoming transcripts are normalized and hashed in a local SQLite database (`finsight.db`). Repeated queries return in `< 5ms`, consuming **0** API tokens.
-* **Strict Pydantic v2 Schema Contracts (`schemas.py`):** Enforces rigorous input sanitization, token limits, and output structure validation.
-* **Full-Text RAG Search Engine (`/search`):** Indexes raw corporate filings in SQLite and retrieves ranked context-window snippets across companies.
-* **Interactive Swagger / OpenAPI 3.0 Docs (`/apidocs`):** Live browser-based API documentation and testing interface.
-* **Docker & CI/CD Ready:** Includes a multi-worker `Dockerfile` (`gunicorn`), `docker-compose.yml`, and automated GitHub Actions matrix testing across Python 3.10 and 3.11.
+---
+
+## Platform Visual Walkthrough & Interface Gallery
+
+| **1. Institutional Intelligence Studio** | **2. 5-Pillar Executive Summary & Radar** |
+| :---: | :---: |
+| ![Screenshot 1](./Media/Images/1.png) | ![Screenshot 2](./Media/Images/2.png) |
+| **3. Forensic Red-Flag & Hedging Scanner** | **4. Grounded Q&A Chat (Verbatim Citations)** |
+| ![Screenshot 3](./Media/Images/3.png) | ![Screenshot 4](./Media/Images/4.png) |
+| **5. Full-Text RAG Search & Live SEC EDGAR** | **6. Multi-Company Sector Peer Matrix** |
+| ![Screenshot 5](./Media/Images/5.png) | ![Screenshot 6](./Media/Images/6.png) |
+| **7. Multi-Quarter Credibility Tracker** | **8. System Architecture & Swagger OpenAPI** |
+| ![Screenshot 7](./Media/Images/7.png) | ![Screenshot 8](./Media/Images/8.png) |
+
+---
+
+## Key Engineering & Product Highlights
+
+1. **80% API Latency & Quota Reduction:** Consolidates 5 sequential LLM calls into a single structured JSON schema prompt paired with a deterministic local heuristic NLP fallback engine.
+2. **Content-Addressable SHA-256 SQLite Caching (`database.py`):** Normalizes and hashes every incoming transcript (`company_name + transcript_text`). Repeated analyses return in `< 5ms` while consuming **0 API tokens**.
+3. **Grounded Q&A with Exact Quote Citations (`POST /ask/<id>`):** Answers natural-language analyst questions strictly grounded in the filing text, returning verbatim sentence citations to eliminate hallucinations.
+4. **Forensic Red-Flag & Management Hedging Scanner (`GET /forensics/<id>`):** Computes an Executive Transparency Score (`0–100`), linguistic hedging-to-certainty ratios, and accounting/regulatory risk flags.
+5. **Multi-Company Sector Peer Benchmark Matrix (`GET /benchmark`):** Ranks multiple cached companies from `#1 Sector Leader` to `#N`, computing composite scores and sector-wide averages across all 6 radar dimensions.
+6. **Multi-Quarter Guidance vs. Reality Credibility Tracker (`GET /credibility`):** Cross-audits prior-quarter forward guidance commitments against subsequent-quarter actual performance (`Delivered`, `In Progress`, `Missed / Pivoted`).
+7. **Live U.S. SEC EDGAR Connector (`GET /sec_filings/<ticker>`):** Resolves stock tickers (`AAPL`, `NVDA`, `MSFT`) to 10-digit SEC CIK identifiers and retrieves live 10-K, 10-Q, and 8-K filing URLs directly from `data.sec.gov`.
+8. **Production Guardrails (`schemas.py` & `app.py`):** Strict Pydantic v2 validation, per-IP token-bucket rate limiting (`60 req/min`), `X-Process-Time-Ms` latency headers, Docker + Gunicorn deployment, and **18 automated offline unit tests**.
+
+---
 
 ## System Architecture
 
 ```text
-+-------------------------------------------------------------------+
-|                   FinSight AI Web Dashboard                       |
-|   (Tailwind CSS + Chart.js Radar + RAG Search + QoQ Comparator)   |
-+---------------------------------+---------------------------------+
-                                  |
-                                  v
-+-------------------------------------------------------------------+
-|           Flask REST API + Pydantic v2 Layer (app.py)             |
-|  POST /earnings_transcript_summary | GET /search | GET /compare   |
-|  GET /history                      | GET /apidocs| GET /health    |
-+----------------+---------------------------------+----------------+
-                 |                                 |
-      [1. SHA-256 Cache Lookup]         [2. Cache Miss: Single-Shot JSON]
-                 |                                 |
-                 v                                 v
-+--------------------------------+  +-------------------------------+
-|   SQLite Persistence & RAG     |  |  Hybrid NLP + Gemini Engine   |
-|         (database.py)          |  |  (analyzer.py / pdf_parser.py)|
-| - Content-Addressable Caching  |  | - Local Keyword Signal Scan   |
-| - Ranked Context Snippet Search|  | - Structured JSON Extraction  |
-+--------------------------------+  +-------------------------------+
++-----------------------------------------------------------------------------------+
+|                FinSight AI 5-Page Institutional Web Workspace                     |
+|  1. Studio | 2. RAG & SEC EDGAR | 3. Sector Matrix | 4. Credibility | 5. System   |
++-----------------------------------------+-----------------------------------------+
+                                          |
+                                          v
++-----------------------------------------------------------------------------------+
+|         Flask REST API + Token-Bucket Rate Limiter + Pydantic v2 (app.py)         |
+|  POST /earnings_transcript_summary | POST /batch_analyze | POST /ask/<id>         |
+|  GET  /forensics/<id>              | GET  /benchmark     | GET  /credibility      |
+|  GET  /sec_filings/<ticker>        | GET  /search        | GET  /export/<id>      |
++--------------------+-----------------------------------------+--------------------+
+                     |                                         |
+          [1. SHA-256 Cache Lookup]                 [2. Cache Miss / Live Processing]
+                     |                                         |
+                     v                                         v
++------------------------------------+      +---------------------------------------+
+|   SQLite Persistence & RAG Layer   |      |   Hybrid AI & Forensic NLP Engine     |
+|           (database.py)            |      | (analyzer.py / sec_connector.py)      |
+| - SHA-256 Content-Addressable Cache|      | - Single-Shot Gemini JSON + Fallback  |
+| - Full-Text RAG Context Snippets   |      | - Forensic Hedging & Citation Scorer  |
+| - Multi-Peer Sector Aggregation    |      | - Live SEC EDGAR CIK & Filing Lookup  |
++------------------------------------+      +---------------------------------------+
 ```
 
-## Codebase Overview
+---
 
-* **`app.py`**: Core Flask application routing, OpenAPI 3.0 specification (`/openapi.json`), and Swagger UI (`/apidocs`).
-* **`schemas.py`**: Pydantic v2 data models (`TranscriptRequest`, `RadarScores`, `AnalysisResponse`) enforcing strict API validation.
-* **`analyzer.py`**: Dual-engine analysis logic (Gemini API Structured JSON + Local Heuristic NLP Fallback).
-* **`database.py`**: SQLite schema management, SHA-256 hashing, and full-text RAG search (`search_reports_rag`).
-* **`pdf_parser.py`**: Secure `.pdf` and `.txt` file ingestion and text normalization utilities.
-* **`config.py`**: Centralized environment configuration.
-* **`test_api.py`**: 9 deterministic offline unit tests utilizing `unittest.mock` and isolated temporary SQLite databases.
-* **`Dockerfile` & `docker-compose.yml`**: Production containerization running Gunicorn with non-root security.
+## Codebase & Media Structure
 
-## 🔌 API Endpoints
+| File / Directory | Responsibility |
+| :--- | :--- |
+| `app.py` | Main Flask REST API, Token-Bucket Rate Limiter middleware, latency profiling headers, OpenAPI 3.0 spec (`/openapi.json`), and Swagger UI (`/apidocs`). |
+| `analyzer.py` | Hybrid Gemini/Local NLP extraction engine, Grounded Q&A citation scorer, Forensic Red-Flag scanner, and Guidance Credibility evaluator. |
+| `database.py` | SQLite persistence (`finsight.db`), SHA-256 caching, Full-Text RAG snippet search, Sector Peer Benchmark aggregation, and system telemetry. |
+| `schemas.py` | Strict Pydantic v2 data models validating all request payloads and response contracts. |
+| `sec_connector.py` | Live HTTP connector to `www.sec.gov` and `data.sec.gov` for CIK resolution and 10-K/10-Q/8-K filing retrieval. |
+| `pdf_parser.py` | Local `.pdf` (`pypdf`) and `.txt` transcript text extraction and whitespace normalization. |
+| `config.py` | Centralized environment configuration with `.env` support. |
+| `templates/index.html` | Responsive 5-page dark-mode FinTech UI with Chart.js radar visualizations and 3-sub-tab report inspection. |
+| `test_api.py` | **18 deterministic offline unit tests** covering every endpoint, edge case, and rate-limiter guardrail. |
+| `Dockerfile` & `docker-compose.yml` | Production containerization running 4 Gunicorn workers under a non-root user. |
+| `Media/Documentation/` | Contains the full technical guide (`FinSight AI Complete Project Documentation.pdf`). |
+| `Media/Images/` | High-resolution screenshots (`1.png` – `8.png`) of all platform workflows. |
 
-* **`POST /earnings_transcript_summary`**: Analyzes an earnings transcript via JSON or `.pdf`/`.txt` upload.
-* **`GET /search?q=<keyword>`**: Full-text RAG search returning ranked context snippets across stored filings.
-* **`GET /compare?id1=<int>&id2=<int>`**: Computes side-by-side QoQ radar score deltas and risk index shifts.
-* **`GET /history`** & **`GET /history/<id>`**: Lists or retrieves cached company analysis reports.
-* **`GET /apidocs`** & **`GET /openapi.json`**: Interactive Swagger UI and OpenAPI 3.0 spec.
-* **`GET /health`**: Service health check and SQLite cache count.
+---
 
-## Quickstart (Local or Docker)
+## Quickstart & Verification
 
-### Option A: Local Python Setup
+### 1. Local Setup
 ```bash
 git clone https://github.com/PijushPathak07/Python_and_Gen-AI.git
 cd Python_and_Gen-AI
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
+```
 
-# Run the 9 offline unit tests
+### 2. Run the 18 Automated Unit Tests
+```bash
 python -m unittest test_api.py -v
+```
 
-# Start the server
+### 3. Start the Application
+```bash
 python app.py
 ```
-* **Dashboard:** `http://127.0.0.1:5000`
-* **Swagger API Docs:** `http://127.0.0.1:5000/apidocs`
-
-### Option B: Production Docker Container
-```bash
-docker-compose up --build -d
-```
+* **Main 5-Page Web Platform:** `http://127.0.0.1:5000`
+* **Interactive Swagger / OpenAPI Docs:** `http://127.0.0.1:5000/apidocs`
 
 ---
-**Developer Contact**
-*Pijush Pathak* | [pijushpathak94@gmail.com](mailto:pijushpathak94@gmail.com)
+**Author:** Pijush Pathak ([pijushpathak94@gmail.com](mailto:pijushpathak94@gmail.com))

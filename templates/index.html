@@ -2,229 +2,739 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FinSight AI — Earnings Call Intelligence Engine</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>FinSight AI — Institutional Earnings Intelligence Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #050811;
+      background-image:
+        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 45%),
+        radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.07) 0px, transparent 45%),
+        radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
+    }
+    .glass-card {
+      background: rgba(13, 19, 34, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .glass-subcard {
+      background: rgba(7, 11, 20, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #050811; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
-  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-emerald-400">FinSight AI</h1>
-        <p class="text-xs text-slate-400">Enterprise Earnings Call Intelligence, RAG Search & Risk Radar (SHA-256 Cached)</p>
+<body class="text-slate-100 min-h-screen flex flex-col lg:flex-row selection:bg-emerald-500/30 selection:text-emerald-200 overflow-x-hidden pb-20 lg:pb-0">
+
+  <!-- ===================================================================== -->
+  <!-- DESKTOP LEFT COMMAND SIDEBAR (Visible on lg+ screens)                 -->
+  <!-- ===================================================================== -->
+  <aside class="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-[#080d1a]/95 border-r border-white/[0.07] z-30 select-none">
+    <!-- Brand Logo -->
+    <div class="p-5 border-b border-white/[0.06] flex items-center gap-3">
+      <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 font-extrabold text-slate-950 text-lg shrink-0">
+        F
       </div>
-      <div class="flex items-center gap-3">
-        <a href="/apidocs" target="_blank" class="text-xs bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/30 px-3 py-2 rounded-lg transition">
-          Swagger API Docs ↗
-        </a>
-        <button id="open-compare-btn" type="button" class="text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 px-3 py-2 rounded-lg transition">
-          Compare QoQ Reports
-        </button>
-        <button id="load-sample-btn" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-lg transition">
-          Load Sample Earnings Transcript
-        </button>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-base tracking-tight text-white truncate">FinSight AI</span>
+          <span class="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">v2.0</span>
+        </div>
+        <p class="text-[11px] text-slate-400 truncate">Institutional Terminal</p>
       </div>
     </div>
-  </header>
 
-  <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-    <!-- Left Column: Input + RAG Search + History -->
-    <section class="lg:col-span-4 space-y-6">
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <h2 class="text-base font-semibold mb-4 text-slate-200">Analyze Transcript</h2>
-        <form id="transcript-form" class="space-y-4">
-          <div>
-            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Company Name *</label>
-            <input type="text" id="company-name" required placeholder="e.g. Reliance Industries" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Ticker</label>
-              <input type="text" id="ticker" placeholder="e.g. RELIANCE" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Quarter</label>
-              <input type="text" id="quarter" placeholder="e.g. Q3 FY26" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-            </div>
-          </div>
-          <div>
-            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Upload PDF / TXT (Optional)</label>
-            <input type="file" id="transcript-file" accept=".pdf,.txt" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700" />
-          </div>
-          <div>
-            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Transcript Text *</label>
-            <textarea id="transcript-text" rows="7" placeholder="Paste earnings call transcript or upload a PDF above..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"></textarea>
-          </div>
-          <button type="submit" id="submit-btn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm transition">
-            Run Intelligence Extraction
-          </button>
-        </form>
-        <div id="status-banner" class="hidden mt-3 p-2.5 rounded-lg text-xs border"></div>
-      </div>
+    <!-- Primary Navigation Links -->
+    <div class="p-3.5 space-y-1.5 flex-1 overflow-y-auto">
+      <div class="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-slate-500">Core Modules</div>
 
-      <!-- Interactive Full-Text RAG Search -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <h3 class="text-sm font-semibold text-slate-200 mb-2">Full-Text RAG Transcript Search</h3>
-        <form id="rag-search-form" class="flex gap-2 mb-3">
-          <input type="text" id="rag-query" placeholder="e.g. GPU, carbon tax, margin..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-emerald-500" />
-          <button type="submit" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">
-            Search
-          </button>
-        </form>
-        <div id="rag-results" class="space-y-2 max-h-56 overflow-y-auto text-xs"></div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-slate-200">Cached Reports History</h3>
-          <span class="text-xs text-slate-500" id="history-count">0 saved</span>
+      <button type="button" onclick="switchPage('workspace')" id="nav-workspace" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition bg-gradient-to-r from-emerald-500/20 to-teal-500/10 text-emerald-300 border border-emerald-500/30 shadow-sm text-left">
+        <span class="text-base">📊</span>
+        <div>
+          <div>Intelligence Studio</div>
+          <div class="text-[10px] font-normal text-slate-400">5-Pillar, Forensics &amp; Q&amp;A</div>
         </div>
-        <div id="history-list" class="space-y-2 max-h-72 overflow-y-auto text-xs"></div>
-      </div>
-    </section>
+      </button>
 
-    <!-- Right Column: Results Dashboard -->
-    <section class="lg:col-span-8 space-y-6">
-      <!-- QoQ Comparison Panel (Toggled) -->
-      <div id="compare-panel" class="hidden bg-slate-900 border border-purple-500/40 rounded-xl p-6 space-y-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h3 class="text-base font-bold text-purple-300">Quarter-over-Quarter (QoQ) & Peer Comparison</h3>
-            <p class="text-xs text-slate-400">Select any two cached reports to compute Radar score deltas and Risk Index shifts</p>
-          </div>
-          <button id="close-compare-btn" type="button" class="text-xs text-slate-400 hover:text-white">Close ✕</button>
+      <button type="button" onclick="switchPage('discovery')" id="nav-discovery" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent text-left">
+        <span class="text-base">🔎</span>
+        <div>
+          <div>RAG &amp; SEC EDGAR</div>
+          <div class="text-[10px] font-normal text-slate-500">Context Search &amp; 10-K/10-Q</div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <select id="compare-id1" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs"></select>
-          <select id="compare-id2" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs"></select>
-          <button id="run-compare-btn" type="button" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-4 rounded-lg transition">
-            Run Delta Comparison
-          </button>
+      </button>
+
+      <button type="button" onclick="switchPage('benchmark')" id="nav-benchmark" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent text-left">
+        <span class="text-base">🏆</span>
+        <div>
+          <div>Sector Peer Matrix</div>
+          <div class="text-[10px] font-normal text-slate-500">Multi-Company Heatmap</div>
         </div>
-        <div id="compare-output" class="text-xs space-y-3"></div>
-      </div>
+      </button>
 
-      <div id="empty-state" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-xl p-12 text-center">
-        <p class="text-slate-400 text-sm">Submit an earnings call transcript or click <strong>"Load Sample Earnings Transcript"</strong> in the top bar to generate multi-pillar institutional intelligence.</p>
-      </div>
-
-      <div id="dashboard-content" class="hidden space-y-6">
-        <!-- Executive Header -->
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-3">
-              <h2 id="res-company" class="text-2xl font-bold text-white"></h2>
-              <span id="res-cache-badge" class="hidden text-xs bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2.5 py-0.5 rounded-full">SHA-256 Cache Hit (0 Tokens)</span>
-            </div>
-            <p id="res-meta" class="text-xs text-slate-400 mt-1"></p>
-          </div>
-          <div class="flex items-center gap-4">
-            <div class="text-right">
-              <span class="block text-xs text-slate-400">Sentiment</span>
-              <span id="res-sentiment" class="inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold"></span>
-            </div>
-            <div class="text-right">
-              <span class="block text-xs text-slate-400">Confidence</span>
-              <span id="res-confidence" class="text-lg font-bold text-emerald-400"></span>
-            </div>
-            <div class="text-right">
-              <span class="block text-xs text-slate-400">Risk Index</span>
-              <span id="res-risk" class="text-lg font-bold text-amber-400"></span>
-            </div>
-            <div id="export-actions" class="hidden flex flex-col gap-1.5 pl-3 border-l border-slate-800">
-              <a id="export-md-link" href="#" target="_blank" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-300 px-2.5 py-1 rounded text-center transition">
-                ⬇ Export .MD
-              </a>
-              <a id="export-csv-link" href="#" target="_blank" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2.5 py-1 rounded text-center transition">
-                ⬇ Export .CSV
-              </a>
-            </div>
-          </div>
+      <button type="button" onclick="switchPage('credibility')" id="nav-credibility" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent text-left">
+        <span class="text-base">🎯</span>
+        <div>
+          <div>QoQ &amp; Credibility</div>
+          <div class="text-[10px] font-normal text-slate-500">Guidance vs. Reality Audit</div>
         </div>
+      </button>
 
-        <!-- Radar Chart & Takeaways -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <h3 class="text-sm font-semibold text-slate-300 mb-3">6-Factor Institutional Radar</h3>
-            <canvas id="radarChart" height="220"></canvas>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-            <div>
-              <h3 class="text-sm font-semibold text-slate-300 mb-3">Executive Takeaways</h3>
-              <ul id="res-takeaways" class="space-y-2 text-sm text-slate-300 list-disc list-inside"></ul>
-            </div>
-            <div class="mt-4 pt-4 border-t border-slate-800">
-              <h4 class="text-xs uppercase tracking-wider text-slate-400 mb-2">Extracted Financial KPIs</h4>
-              <div id="res-kpis" class="grid grid-cols-2 gap-2 text-xs"></div>
-            </div>
-          </div>
+      <button type="button" onclick="switchPage('system')" id="nav-system" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent text-left">
+        <span class="text-base">⚙️</span>
+        <div>
+          <div>System Architecture</div>
+          <div class="text-[10px] font-normal text-slate-500">Telemetry &amp; OpenAPI Guide</div>
         </div>
+      </button>
 
-        <!-- 5 Core Category Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="category-cards"></div>
-
-        <!-- Forensic Red-Flag & Management Hedging Detector -->
-        <div class="bg-slate-900 border border-amber-500/30 rounded-xl p-6 space-y-4 shadow-lg">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 class="text-base font-bold text-amber-400">🔍 Forensic Red-Flag & Management Hedging Audit</h3>
-              <p class="text-xs text-slate-400">Lexical evasion scanner measuring executive certainty vs. hedging ratios and accounting/macro red flags.</p>
-            </div>
-            <div class="flex items-center gap-3">
-              <span id="forensic-score-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-emerald-300">
-                Transparency: --/100
-              </span>
-              <span id="forensic-risk-badge" class="text-xs font-bold px-3 py-1 rounded-full bg-slate-800 text-amber-300">
-                Evasion Risk: --
-              </span>
-            </div>
-          </div>
-          <div id="forensic-metrics-bar" class="grid grid-cols-3 gap-3 text-xs"></div>
-          <div id="forensic-flags-list" class="space-y-2 text-xs"></div>
-        </div>
-
-        <!-- Grounded Q&A: Chat with Filing (Exact Citations) -->
-        <div class="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 space-y-4 shadow-lg">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 class="text-base font-bold text-emerald-400">💬 Chat with Filing — Grounded Q&A (Exact Quote Citations)</h3>
-              <p class="text-xs text-slate-400">Ask any specific question about this transcript. Answers are strictly grounded with verbatim sentence citations.</p>
-            </div>
-            <span class="text-[11px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full">
-              Anti-Hallucination Citation Mode
+      <!-- Live Telemetry Mini-Widget inside Sidebar -->
+      <div class="mt-6 pt-5 border-t border-white/[0.06] px-2 space-y-3">
+        <div class="text-[10px] font-mono uppercase tracking-widest text-slate-500">Live Engine Telemetry</div>
+        <div class="glass-subcard rounded-xl p-3 space-y-2.5 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>Cache
             </span>
+            <span class="font-mono text-[11px] text-emerald-400 font-semibold">SHA-256 Active</span>
           </div>
-
-          <!-- Quick Analyst Question Chips -->
-          <div class="flex flex-wrap gap-2 text-xs">
-            <button type="button" onclick="askPresetQuestion('What was the reported revenue growth, operating margin, and EPS?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
-              📈 Revenue, Margin & EPS?
-            </button>
-            <button type="button" onclick="askPresetQuestion('What expansion plans, capex, or new regions were announced?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
-              🚀 Expansion & CapEx Plans?
-            </button>
-            <button type="button" onclick="askPresetQuestion('What regulatory compliance or environmental sustainability initiatives were discussed?')" class="bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-md transition">
-              ⚖️ Regulatory & ESG Risks?
-            </button>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Saved Filings</span>
+            <span id="stat-total-reports" class="font-mono font-bold text-white">0</span>
           </div>
-
-          <form id="qa-form" class="flex gap-2">
-            <input type="text" id="qa-question-input" required placeholder="Ask a question about this company's earnings call..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:border-emerald-500" />
-            <button type="submit" id="qa-submit-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
-              Ask Filing
-            </button>
-          </form>
-
-          <div id="qa-History-thread" class="space-y-3 text-xs"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Avg Confidence</span>
+            <span id="stat-avg-conf" class="font-mono font-bold text-sky-400">—</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400">Tokens Saved</span>
+            <span id="stat-tokens-saved" class="font-mono font-bold text-amber-400">0</span>
+          </div>
         </div>
       </div>
-    </section>
-  </main>
+    </div>
+
+    <!-- Bottom Sidebar Quick Links -->
+    <div class="p-4 border-t border-white/[0.06] space-y-2">
+      <a href="/apidocs" target="_blank" class="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-medium bg-white/[0.04] hover:bg-white/[0.08] text-sky-300 border border-white/[0.07] transition">
+        <span>Swagger OpenAPI 3.0</span>
+        <span>↗</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- MAIN CONTENT WRAPPER (Fluid width on mobile/tablet, offset on lg+)    -->
+  <!-- ===================================================================== -->
+  <div class="flex-1 lg:pl-64 flex flex-col min-w-0">
+
+    <!-- TOP STICKY GLASS HEADER (Responsive across all screens) -->
+    <header class="sticky top-0 z-20 bg-[#070b14]/85 backdrop-blur-xl border-b border-white/[0.07]">
+      <div class="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <!-- Mobile Brand + Current View Title -->
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="lg:hidden w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center font-extrabold text-slate-950 text-sm shrink-0">
+            F
+          </div>
+          <div class="min-w-0">
+            <h1 id="topbar-title" class="text-sm sm:text-base font-bold text-white truncate">Institutional Intelligence Studio</h1>
+            <p class="text-[11px] text-slate-400 hidden sm:block truncate">Pydantic v2 Validated • Deterministic SHA-256 SQLite Caching • Hybrid Gemini &amp; Forensic NLP</p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="load-sample-btn" type="button" class="text-xs bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-xl font-semibold transition flex items-center gap-1.5">
+            <span>⚡</span>
+            <span class="hidden xs:inline">Load</span> Demo Filing
+          </button>
+          <a href="/apidocs" target="_blank" class="lg:hidden text-xs bg-white/[0.05] hover:bg-white/[0.1] text-sky-300 border border-white/[0.08] px-3 py-2 rounded-xl font-medium transition">
+            API ↗
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN FLUID CONTAINER -->
+    <main class="max-w-[1440px] w-full mx-auto px-4 sm:px-6 py-5 sm:py-7 flex-1">
+
+      <!-- ================================================================= -->
+      <!-- PAGE 1: INTELLIGENCE WORKSPACE                                    -->
+      <!-- ================================================================= -->
+      <div id="page-workspace" class="page-section grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+
+        <!-- Left Column: Filing Ingestion + Cached Reports Drawer (12 cols on mobile/tablet, 4 cols on xl) -->
+        <div class="xl:col-span-4 space-y-5">
+
+          <!-- Ingestion Form Card -->
+          <div class="glass-card rounded-2xl p-5 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">01 // Ingest Transcript</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5">Paste text or upload a `.pdf` / `.txt` filing</p>
+              </div>
+              <span class="text-[10px] font-mono bg-white/[0.05] text-slate-300 px-2 py-0.5 rounded-md border border-white/[0.06]">30K MAX</span>
+            </div>
+
+            <form id="transcript-form" class="space-y-3.5">
+              <div>
+                <label class="block text-[11px] font-medium text-slate-300 mb-1">Company Name *</label>
+                <input type="text" id="company-name" required placeholder="e.g. Apex Cloud Systems" class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition" />
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[11px] font-medium text-slate-300 mb-1">Ticker Symbol</label>
+                  <input type="text" id="ticker" placeholder="e.g. APEX" class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2 text-sm font-mono text-white placeholder-slate-500 uppercase focus:outline-none focus:border-emerald-500 transition" />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-medium text-slate-300 mb-1">Fiscal Period</label>
+                  <input type="text" id="quarter" placeholder="e.g. Q3 FY26" class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2 text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-medium text-slate-300 mb-1">Attach PDF / TXT Filing (Optional)</label>
+                <input type="file" id="transcript-file" accept=".pdf,.txt" class="w-full text-xs text-slate-400 bg-[#050811] border border-white/[0.08] rounded-xl p-1.5 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-emerald-500/15 file:text-emerald-300 file:font-semibold hover:file:bg-emerald-500/25 cursor-pointer" />
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-[11px] font-medium text-slate-300">Earnings Call Transcript *</label>
+                  <button type="button" onclick="document.getElementById('load-sample-btn').click()" class="text-[11px] text-emerald-400 hover:underline font-medium">Fill sample text</button>
+                </div>
+                <textarea id="transcript-text" rows="5" placeholder="Paste prepared remarks, analyst Q&A, or tax strategy disclosure..." class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"></textarea>
+              </div>
+
+              <button type="submit" id="submit-btn" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition active:scale-[0.99]">
+                Run 5-Pillar Intelligence Extraction
+              </button>
+            </form>
+
+            <div id="status-banner" class="hidden mt-3 p-3 rounded-xl text-xs border"></div>
+          </div>
+
+          <!-- SQLite Cached Filings Card -->
+          <div class="glass-card rounded-2xl p-5 shadow-2xl">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-sky-400">02 // Cached Vault</h3>
+                <p class="text-[11px] text-slate-400">Instant 0-token SHA-256 retrieval</p>
+              </div>
+              <span class="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white/[0.06] text-emerald-400 border border-white/[0.07]" id="history-count">0 saved</span>
+            </div>
+            <div id="history-list" class="space-y-2 max-h-64 overflow-y-auto pr-1 text-xs"></div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Report Studio (12 cols on mobile/tablet, 8 cols on xl) -->
+        <div class="xl:col-span-8 min-w-0">
+
+          <!-- Empty State Onboarding Card -->
+          <div id="empty-state" class="glass-card rounded-2xl p-6 sm:p-10 text-center space-y-6 shadow-2xl">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto text-3xl shadow-inner">
+              ⚡
+            </div>
+            <div class="max-w-xl mx-auto space-y-2">
+              <h2 class="text-lg sm:text-2xl font-extrabold text-white tracking-tight">Institutional Earnings Call Intelligence</h2>
+              <p class="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                Transform unstructured corporate transcripts and PDFs into 5-pillar institutional briefs, 6-factor radar scores, forensic management evasion audits, and verbatim citation Q&amp;A.
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-2xl mx-auto text-left text-xs">
+              <div class="glass-subcard p-4 rounded-xl space-y-1">
+                <div class="font-mono font-bold text-emerald-400 text-[11px]">01 / INGEST</div>
+                <div class="font-semibold text-white">5-Pillar + Radar</div>
+                <p class="text-slate-400 text-[11px] leading-relaxed">Single-shot structured extraction with SHA-256 SQLite caching.</p>
+              </div>
+              <div class="glass-subcard p-4 rounded-xl space-y-1">
+                <div class="font-mono font-bold text-amber-400 text-[11px]">02 / FORENSICS</div>
+                <div class="font-semibold text-white">Red-Flag Scanner</div>
+                <p class="text-slate-400 text-[11px] leading-relaxed">Measures executive certainty vs. hedging ratios &amp; accounting risks.</p>
+              </div>
+              <div class="glass-subcard p-4 rounded-xl space-y-1">
+                <div class="font-mono font-bold text-sky-400 text-[11px]">03 / GROUNDED RAG</div>
+                <div class="font-semibold text-white">Citation Chat</div>
+                <p class="text-slate-400 text-[11px] leading-relaxed">Ask follow-up questions backed by exact verbatim transcript quotes.</p>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <button type="button" onclick="document.getElementById('load-sample-btn').click(); document.getElementById('submit-btn').click();" class="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold px-6 py-3 rounded-xl text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-500/20">
+                🚀 Launch Instant Demo Analysis
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Report Workspace -->
+          <div id="dashboard-content" class="hidden space-y-5">
+
+            <!-- Executive Header Banner -->
+            <div class="glass-card rounded-2xl p-5 sm:p-6 shadow-2xl">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 id="res-company" class="text-xl sm:text-2xl font-extrabold text-white tracking-tight truncate"></h2>
+                    <span id="res-cache-badge" class="hidden text-[11px] font-mono font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 px-2.5 py-0.5 rounded-full">
+                      ⚡ SHA-256 CACHE HIT (0 TOKENS)
+                    </span>
+                  </div>
+                  <p id="res-meta" class="text-xs font-mono text-slate-400 mt-1"></p>
+                </div>
+
+                <!-- Export Buttons -->
+                <div id="export-actions" class="hidden flex flex-wrap items-center gap-2 shrink-0">
+                  <a id="export-md-link" href="#" target="_blank" class="text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-emerald-300 border border-white/[0.08] px-3.5 py-2 rounded-xl transition">
+                    ⬇ Brief (.MD)
+                  </a>
+                  <a id="export-csv-link" href="#" target="_blank" class="text-xs font-semibold bg-white/[0.05] hover:bg-white/[0.1] text-sky-300 border border-white/[0.08] px-3.5 py-2 rounded-xl transition">
+                    ⬇ Data (.CSV)
+                  </a>
+                </div>
+              </div>
+
+              <!-- Responsive Metric Scorecards -->
+              <div class="grid grid-cols-3 gap-3 mt-5 pt-4 border-t border-white/[0.07]">
+                <div class="glass-subcard p-3 rounded-xl text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Sentiment</span>
+                  <span id="res-sentiment" class="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold self-center"></span>
+                </div>
+                <div class="glass-subcard p-3 rounded-xl text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Confidence</span>
+                  <span id="res-confidence" class="text-sm sm:text-base font-mono font-extrabold text-emerald-400"></span>
+                </div>
+                <div class="glass-subcard p-3 rounded-xl text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400">Risk Index</span>
+                  <span id="res-risk" class="text-sm sm:text-base font-mono font-extrabold text-amber-400"></span>
+                </div>
+              </div>
+
+              <!-- Responsive Sub-Tab Bar -->
+              <div class="mt-4 pt-3 border-t border-white/[0.06] grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button type="button" onclick="switchReportSubTab('overview')" id="subtab-btn-overview" class="report-subtab px-3.5 py-2.5 rounded-xl text-xs font-semibold transition bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-center">
+                  📊 1. 5-Pillar &amp; Radar
+                </button>
+                <button type="button" onclick="switchReportSubTab('forensics')" id="subtab-btn-forensics" class="report-subtab px-3.5 py-2.5 rounded-xl text-xs font-medium transition glass-subcard text-slate-400 hover:text-white text-center">
+                  🔍 2. Forensic Audit
+                </button>
+                <button type="button" onclick="switchReportSubTab('qa')" id="subtab-btn-qa" class="report-subtab px-3.5 py-2.5 rounded-xl text-xs font-medium transition glass-subcard text-slate-400 hover:text-white text-center">
+                  💬 3. Grounded Q&amp;A
+                </button>
+              </div>
+            </div>
+
+            <!-- SUB-TAB 1: 5-PILLAR EXECUTIVE OVERVIEW & RADAR -->
+            <div id="subtab-overview" class="space-y-5">
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <!-- Responsive Chart.js Radar Box (5 cols) -->
+                <div class="lg:col-span-5 glass-card rounded-2xl p-5 flex flex-col justify-between shadow-xl">
+                  <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-300">6-Factor Radar</h3>
+                    <span class="text-[10px] font-mono text-slate-400">0–100 Scale</span>
+                  </div>
+                  <div class="relative w-full h-64 sm:h-72 flex items-center justify-center">
+                    <canvas id="radarChart"></canvas>
+                  </div>
+                </div>
+
+                <!-- Takeaways & Extracted KPIs (7 cols) -->
+                <div class="lg:col-span-7 glass-card rounded-2xl p-5 flex flex-col justify-between shadow-xl">
+                  <div>
+                    <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-3">Executive Takeaways</h3>
+                    <ul id="res-takeaways" class="space-y-2.5 text-xs sm:text-sm text-slate-200 leading-relaxed list-disc list-inside"></ul>
+                  </div>
+                  <div class="mt-5 pt-4 border-t border-white/[0.07]">
+                    <h4 class="text-[11px] font-mono font-bold uppercase tracking-wider text-slate-400 mb-2.5">Extracted Financial &amp; NLP Signals</h4>
+                    <div id="res-kpis" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5 Core Category Cards -->
+              <div>
+                <h3 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-3">5-Pillar Institutional Synthesis</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="category-cards"></div>
+              </div>
+            </div>
+
+            <!-- SUB-TAB 2: FORENSIC RED-FLAG & MANAGEMENT HEDGING AUDIT -->
+            <div id="subtab-forensics" class="hidden">
+              <div class="glass-card rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 class="text-base font-bold text-amber-300">🔍 Forensic Red-Flag &amp; Management Hedging Scanner</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Quantifies executive certainty vs. qualifier hedging and flags accounting or macro risk triggers.</p>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span id="forensic-score-badge" class="text-xs font-mono font-bold px-3 py-1.5 rounded-xl glass-subcard text-emerald-300">
+                      Transparency: --/100
+                    </span>
+                    <span id="forensic-risk-badge" class="text-xs font-mono font-bold px-3 py-1.5 rounded-xl glass-subcard text-amber-300">
+                      Evasion Risk: --
+                    </span>
+                  </div>
+                </div>
+                <div id="forensic-metrics-bar" class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"></div>
+                <div>
+                  <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-2.5">Forensic Risk Signals &amp; Verbatim Evidence</h4>
+                  <div id="forensic-flags-list" class="space-y-2.5 text-xs"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SUB-TAB 3: GROUNDED Q&A CHAT -->
+            <div id="subtab-qa" class="hidden">
+              <div class="glass-card rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-base font-bold text-emerald-400">💬 Chat with Filing — Grounded Q&amp;A</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Every answer is strictly grounded in the filing with verbatim sentence citations.</p>
+                  </div>
+                  <span class="text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full self-start sm:self-auto">
+                    Citation-Backed RAG
+                  </span>
+                </div>
+
+                <!-- Preset Chips -->
+                <div class="flex flex-wrap gap-2 text-xs">
+                  <button type="button" onclick="askPresetQuestion('What was the reported revenue growth, operating margin, and EPS?')" class="glass-subcard hover:bg-white/[0.06] text-slate-200 px-3 py-1.5 rounded-xl transition">
+                    📈 Revenue, Margin &amp; EPS?
+                  </button>
+                  <button type="button" onclick="askPresetQuestion('What expansion plans, capex, or new regions were announced?')" class="glass-subcard hover:bg-white/[0.06] text-slate-200 px-3 py-1.5 rounded-xl transition">
+                    🚀 Expansion &amp; CapEx?
+                  </button>
+                  <button type="button" onclick="askPresetQuestion('What regulatory compliance or environmental sustainability initiatives were discussed?')" class="glass-subcard hover:bg-white/[0.06] text-slate-200 px-3 py-1.5 rounded-xl transition">
+                    ⚖️ Regulatory &amp; ESG?
+                  </button>
+                </div>
+
+                <form id="qa-form" class="flex flex-col sm:flex-row gap-2.5">
+                  <input type="text" id="qa-question-input" required placeholder="Ask a specific question about this earnings filing..." class="flex-1 bg-[#050811] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+                  <button type="submit" id="qa-submit-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider transition shrink-0">
+                    Ask Filing
+                  </button>
+                </form>
+
+                <div id="qa-History-thread" class="space-y-3 text-xs"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- PAGE 2: RAG SEARCH & LIVE SEC EDGAR CONNECTOR                     -->
+      <!-- ================================================================= -->
+      <div id="page-discovery" class="page-section hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+
+          <!-- Left: Multi-Transcript RAG Search -->
+          <div class="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h3 class="text-base font-bold text-sky-400">🔎 Full-Text RAG Context Search</h3>
+                <p class="text-xs text-slate-400">Scans all cached filings &amp; extracts ranked 180-character snippets</p>
+              </div>
+              <span class="text-[10px] font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30 px-2.5 py-1 rounded-full shrink-0">GET /search</span>
+            </div>
+
+            <form id="rag-search-form" class="flex flex-col sm:flex-row gap-2.5">
+              <input type="text" id="rag-query" placeholder="Search keyword (e.g. GPU, sovereign cloud, carbon tax, margin)..." class="flex-1 bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500" />
+              <button type="submit" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition shrink-0">
+                Search Vault
+              </button>
+            </form>
+
+            <div class="flex flex-wrap gap-2 text-[11px]">
+              <span class="text-slate-500">Quick filters:</span>
+              <button type="button" onclick="document.getElementById('rag-query').value='GPU'; document.getElementById('rag-search-form').requestSubmit();" class="text-sky-400 hover:underline font-mono">GPU</button>
+              <button type="button" onclick="document.getElementById('rag-query').value='revenue'; document.getElementById('rag-search-form').requestSubmit();" class="text-sky-400 hover:underline font-mono">revenue</button>
+              <button type="button" onclick="document.getElementById('rag-query').value='renewable'; document.getElementById('rag-search-form').requestSubmit();" class="text-sky-400 hover:underline font-mono">renewable</button>
+            </div>
+
+            <div id="rag-results" class="space-y-2.5 max-h-96 overflow-y-auto text-xs">
+              <div class="text-slate-400 glass-subcard p-4 rounded-xl">Enter a keyword above to search across all stored transcripts.</div>
+            </div>
+          </div>
+
+          <!-- Right: Live SEC EDGAR Connector -->
+          <div class="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <h3 class="text-base font-bold text-emerald-400">🏛️ Live U.S. SEC EDGAR Lookup</h3>
+                <p class="text-xs text-slate-400">Resolves ticker to 10-digit CIK &amp; fetches official 10-K, 10-Q, and 8-K filings</p>
+              </div>
+              <span class="text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full shrink-0">data.sec.gov</span>
+            </div>
+
+            <form id="sec-lookup-form" class="flex flex-col sm:flex-row gap-2.5">
+              <input type="text" id="sec-ticker-input" placeholder="Enter U.S. Ticker (e.g. AAPL, NVDA, MSFT)" class="flex-1 bg-[#050811] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-xs font-mono uppercase text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500" />
+              <button type="submit" id="sec-lookup-btn" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition shrink-0">
+                Fetch Filings
+              </button>
+            </form>
+
+            <div class="flex flex-wrap gap-2 text-[11px] items-center">
+              <span class="text-slate-500">Quick Tickers:</span>
+              <button type="button" onclick="document.getElementById('sec-ticker-input').value='AAPL'; document.getElementById('sec-lookup-form').requestSubmit();" class="glass-subcard px-2.5 py-1 rounded-lg font-mono text-emerald-300 hover:border-emerald-500">AAPL</button>
+              <button type="button" onclick="document.getElementById('sec-ticker-input').value='NVDA'; document.getElementById('sec-lookup-form').requestSubmit();" class="glass-subcard px-2.5 py-1 rounded-lg font-mono text-emerald-300 hover:border-emerald-500">NVDA</button>
+              <button type="button" onclick="document.getElementById('sec-ticker-input').value='MSFT'; document.getElementById('sec-lookup-form').requestSubmit();" class="glass-subcard px-2.5 py-1 rounded-lg font-mono text-emerald-300 hover:border-emerald-500">MSFT</button>
+            </div>
+
+            <div id="sec-results" class="space-y-2.5 text-xs">
+              <div class="text-slate-400 glass-subcard p-4 rounded-xl">Query any U.S. public ticker above to pull official SEC EDGAR filings.</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- PAGE 3: MULTI-COMPANY SECTOR PEER BENCHMARK MATRIX                -->
+      <!-- ================================================================= -->
+      <div id="page-benchmark" class="page-section hidden space-y-6">
+        <div id="benchmark-panel" class="glass-card rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xl">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-amber-300">🏆 Multi-Company Sector Peer Benchmark Matrix</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Ranks all cached companies by Composite Score (80% 6-Factor Radar + 20% Risk Safety).</p>
+            </div>
+            <button id="refresh-benchmark-btn" type="button" class="text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl transition self-start sm:self-auto">
+              ↻ Refresh Matrix
+            </button>
+          </div>
+
+          <div id="benchmark-summary-cards" class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs"></div>
+
+          <div class="overflow-x-auto glass-subcard rounded-xl p-2">
+            <table class="w-full text-left border-collapse text-xs min-w-[720px]">
+              <thead>
+                <tr class="border-b border-white/[0.08] text-slate-400 font-mono uppercase text-[10px]">
+                  <th class="py-3 px-3">Rank</th>
+                  <th class="py-3 px-3">Company</th>
+                  <th class="py-3 px-3">Sentiment</th>
+                  <th class="py-3 px-3">Composite</th>
+                  <th class="py-3 px-3">Rev Growth</th>
+                  <th class="py-3 px-3">Profitability</th>
+                  <th class="py-3 px-3">Market Pos</th>
+                  <th class="py-3 px-3">Expansion</th>
+                  <th class="py-3 px-3">Reg Safety</th>
+                  <th class="py-3 px-3">ESG</th>
+                  <th class="py-3 px-3">Risk Index</th>
+                </tr>
+              </thead>
+              <tbody id="benchmark-table-body" class="divide-y divide-white/[0.05] font-mono"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- PAGE 4: QOQ DELTA & GUIDANCE CREDIBILITY TRACKER                  -->
+      <!-- ================================================================= -->
+      <div id="page-credibility" class="page-section hidden space-y-6">
+        <div id="compare-panel" class="glass-card rounded-2xl p-5 sm:p-6 space-y-5 shadow-2xl">
+          <div>
+            <h2 class="text-lg font-bold text-purple-300">🎯 Multi-Quarter (QoQ) Delta &amp; Guidance Credibility Audit</h2>
+            <p class="text-xs text-slate-400 mt-1">Compare two filings side-by-side or audit whether management delivered on prior forward-looking promises.</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 glass-subcard p-4 rounded-xl">
+            <div>
+              <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Prior Filing (Report 1)</label>
+              <select id="compare-id1" class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-white"></select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">Current Filing (Report 2)</label>
+              <select id="compare-id2" class="w-full bg-[#050811] border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-white"></select>
+            </div>
+            <div class="flex items-end">
+              <button id="run-compare-btn" type="button" class="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition">
+                📈 Run QoQ Score Delta
+              </button>
+            </div>
+            <div class="flex items-end">
+              <button id="run-credibility-btn" type="button" class="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold py-2.5 px-3 rounded-xl transition">
+                🎯 Audit Credibility
+              </button>
+            </div>
+          </div>
+
+          <div id="compare-output" class="text-xs space-y-3">
+            <div class="text-slate-400 glass-subcard p-4 rounded-xl">
+              Select two saved filings above and click <strong>"Run QoQ Score Delta"</strong> or <strong>"Audit Credibility"</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- PAGE 5: SYSTEM TELEMETRY & ARCHITECTURE GUIDE                     -->
+      <!-- ================================================================= -->
+      <div id="page-system" class="page-section hidden space-y-6">
+        <div class="glass-card rounded-2xl p-5 sm:p-6 space-y-6 shadow-2xl">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.07] pb-4">
+            <div>
+              <h2 class="text-lg font-bold text-white">⚙️ System Architecture &amp; REST API Specification</h2>
+              <p class="text-xs text-slate-400 mt-0.5">Production Flask + Gunicorn engine with 18 unit tests, Pydantic v2 schemas, and SHA-256 SQLite caching.</p>
+            </div>
+            <a href="/apidocs" target="_blank" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-4 py-2.5 rounded-xl transition self-start sm:self-auto">
+              Interactive Swagger UI (/apidocs) ↗
+            </a>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div class="glass-subcard p-4 rounded-xl space-y-1.5">
+              <div class="text-emerald-400 font-mono font-bold">01 // SHA-256 SQLite Cache</div>
+              <p class="text-slate-400 leading-relaxed">Normalizes company name + transcript text into a deterministic SHA-256 digest (`finsight.db`). Cache hits return in `&lt; 5ms` with 0 API token cost.</p>
+            </div>
+            <div class="glass-subcard p-4 rounded-xl space-y-1.5">
+              <div class="text-sky-400 font-mono font-bold">02 // Hybrid Gemini + Local NLP</div>
+              <p class="text-slate-400 leading-relaxed">Consolidates 5 sequential LLM calls into a single structured JSON schema prompt (80% lower latency) with an offline heuristic NLP fallback.</p>
+            </div>
+            <div class="glass-subcard p-4 rounded-xl space-y-1.5">
+              <div class="text-amber-400 font-mono font-bold">03 // Rate Limiting &amp; Guardrails</div>
+              <p class="text-slate-400 leading-relaxed">Strict Pydantic v2 validation, per-IP token-bucket rate limiting (`60 req/min`), and `X-Process-Time-Ms` latency headers on every HTTP response.</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto glass-subcard rounded-xl p-2">
+            <table class="w-full text-left border-collapse text-xs min-w-[600px]">
+              <thead>
+                <tr class="border-b border-white/[0.08] text-slate-400 font-mono uppercase text-[10px]">
+                  <th class="py-2.5 px-4">Method</th>
+                  <th class="py-2.5 px-4">Endpoint</th>
+                  <th class="py-2.5 px-4">Capability</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/[0.05] text-slate-300">
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-emerald-400">POST</td><td class="py-2.5 px-4 font-mono">/earnings_transcript_summary</td><td class="py-2.5 px-4">5-pillar extraction, 6-factor radar, and SHA-256 caching (JSON or PDF upload).</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-emerald-400">POST</td><td class="py-2.5 px-4 font-mono">/batch_analyze</td><td class="py-2.5 px-4">Concurrent multi-company batch processing via `ThreadPoolExecutor`.</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-emerald-400">POST</td><td class="py-2.5 px-4 font-mono">/ask/&lt;id&gt;</td><td class="py-2.5 px-4">Grounded Q&amp;A returning natural-language answers with verbatim quote citations.</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-sky-400">GET</td><td class="py-2.5 px-4 font-mono">/forensics/&lt;id&gt;</td><td class="py-2.5 px-4">Forensic NLP audit measuring executive hedging ratios and red flags.</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-sky-400">GET</td><td class="py-2.5 px-4 font-mono">/benchmark</td><td class="py-2.5 px-4">Multi-company Sector Peer Benchmark Matrix and composite rankings.</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-sky-400">GET</td><td class="py-2.5 px-4 font-mono">/credibility</td><td class="py-2.5 px-4">Audits prior-quarter forward guidance promises against current-quarter actuals.</td></tr>
+                <tr><td class="py-2.5 px-4 font-mono font-bold text-sky-400">GET</td><td class="py-2.5 px-4 font-mono">/sec_filings/&lt;ticker&gt;</td><td class="py-2.5 px-4">Live U.S. SEC EDGAR CIK resolver and 10-K/10-Q/8-K filing lookup.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MOBILE & TABLET BOTTOM NAVIGATION DOCK (Hidden on lg+ desktop)        -->
+  <!-- ===================================================================== -->
+  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-[#080d1a]/95 backdrop-blur-xl border-t border-white/[0.08] px-2 py-1.5 grid grid-cols-5 gap-1">
+    <button type="button" onclick="switchPage('workspace')" id="mnav-workspace" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold text-emerald-400 bg-emerald-500/10">
+      <span class="text-sm">📊</span>
+      <span class="mt-0.5">Studio</span>
+    </button>
+    <button type="button" onclick="switchPage('discovery')" id="mnav-discovery" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-slate-400">
+      <span class="text-sm">🔎</span>
+      <span class="mt-0.5">RAG/SEC</span>
+    </button>
+    <button type="button" onclick="switchPage('benchmark')" id="mnav-benchmark" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-slate-400">
+      <span class="text-sm">🏆</span>
+      <span class="mt-0.5">Peers</span>
+    </button>
+    <button type="button" onclick="switchPage('credibility')" id="mnav-credibility" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-slate-400">
+      <span class="text-sm">🎯</span>
+      <span class="mt-0.5">Audit</span>
+    </button>
+    <button type="button" onclick="switchPage('system')" id="mnav-system" class="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-slate-400">
+      <span class="text-sm">⚙️</span>
+      <span class="mt-0.5">System</span>
+    </button>
+  </nav>
 
   <script>
     let radarChartInstance = null;
     let currentReportId = null;
+
+    const PAGE_TITLES = {
+      workspace: 'Institutional Intelligence Studio',
+      discovery: 'Multi-Transcript RAG Search & Live SEC EDGAR',
+      benchmark: 'Multi-Company Sector Peer Benchmark Matrix',
+      credibility: 'Multi-Quarter (QoQ) Delta & Guidance Credibility Audit',
+      system: 'System Architecture, Telemetry & OpenAPI Specification'
+    };
+
+    function switchPage(pageKey) {
+      const pages = ['workspace', 'discovery', 'benchmark', 'credibility', 'system'];
+      document.getElementById('topbar-title').textContent = PAGE_TITLES[pageKey] || 'FinSight AI';
+
+      pages.forEach(p => {
+        const el = document.getElementById(`page-${p}`);
+        const dBtn = document.getElementById(`nav-${p}`);
+        const mBtn = document.getElementById(`mnav-${p}`);
+
+        if (p === pageKey) {
+          el.classList.remove('hidden');
+          if (dBtn) {
+            dBtn.className = 'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition bg-gradient-to-r from-emerald-500/20 to-teal-500/10 text-emerald-300 border border-emerald-500/30 shadow-sm text-left';
+          }
+          if (mBtn) {
+            mBtn.className = 'flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold text-emerald-400 bg-emerald-500/10';
+          }
+        } else {
+          el.classList.add('hidden');
+          if (dBtn) {
+            dBtn.className = 'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent text-left';
+          }
+          if (mBtn) {
+            mBtn.className = 'flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-medium text-slate-400';
+          }
+        }
+      });
+
+      if (pageKey === 'benchmark') loadSectorBenchmark();
+      if (pageKey === 'system') loadTelemetryRibbon();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function switchReportSubTab(tabKey) {
+      const tabs = ['overview', 'forensics', 'qa'];
+      tabs.forEach(t => {
+        const panel = document.getElementById(`subtab-${t}`);
+        const btn = document.getElementById(`subtab-btn-${t}`);
+        if (t === tabKey) {
+          panel.classList.remove('hidden');
+          btn.className = 'report-subtab px-3.5 py-2.5 rounded-xl text-xs font-semibold transition bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-center';
+        } else {
+          panel.classList.add('hidden');
+          btn.className = 'report-subtab px-3.5 py-2.5 rounded-xl text-xs font-medium transition glass-subcard text-slate-400 hover:text-white text-center';
+        }
+      });
+    }
 
     const SAMPLE_TRANSCRIPT = `Good evening everyone, and welcome to Apex Cloud Systems Q3 FY26 Earnings Call.
 We delivered record quarterly revenue of $1.42 billion, representing 24% year-over-year growth, driven by strong enterprise adoption of our AI data warehouse platform. Operating margin expanded by 320 basis points to 28.4%, and diluted EPS reached $1.18, beating consensus guidance. Free cash flow rose 31% YoY to $410 million.
@@ -234,13 +744,29 @@ On environmental sustainability, 88% of our data center footprint now runs on re
 Finally, regarding regulatory changes, we completed full compliance audits for the EU AI Act and new digital data residency mandates with zero material compliance risk.`;
 
     document.getElementById('load-sample-btn').addEventListener('click', () => {
+      switchPage('workspace');
       document.getElementById('company-name').value = 'Apex Cloud Systems';
       document.getElementById('ticker').value = 'APEX';
       document.getElementById('quarter').value = 'Q3 FY26';
       document.getElementById('transcript-text').value = SAMPLE_TRANSCRIPT;
+      showStatus('Demo filing loaded. Click "Run 5-Pillar Intelligence Extraction" below!');
     });
 
+    async function loadTelemetryRibbon() {
+      try {
+        const res = await fetch('/metrics');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('stat-total-reports').textContent = data.total_reports_cached ?? 0;
+        document.getElementById('stat-avg-conf').textContent = data.total_reports_cached > 0 ? `${data.average_confidence_score}%` : '—';
+        document.getElementById('stat-tokens-saved').textContent = (data.estimated_api_tokens_saved ?? 0).toLocaleString();
+      } catch (_) {}
+    }
+
     function renderDashboard(data) {
+      switchPage('workspace');
+      switchReportSubTab('overview');
+
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('dashboard-content').classList.remove('hidden');
 
@@ -250,11 +776,11 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       else cacheBadge.classList.add('hidden');
 
       const words = data.nlp_metrics ? data.nlp_metrics.word_count : 'N/A';
-      document.getElementById('res-meta').textContent = `${data.ticker || 'N/A'} • ${data.quarter || 'Recent Filing'} • ${words} words analyzed`;
+      document.getElementById('res-meta').textContent = `${data.ticker || 'N/A'} • ${data.quarter || 'RECENT'} • ${words} WORDS`;
 
       const sentEl = document.getElementById('res-sentiment');
       sentEl.textContent = data.overall_sentiment || 'Neutral';
-      sentEl.className = 'inline-block mt-1 px-3 py-1 rounded-full text-xs font-bold ' +
+      sentEl.className = 'inline-block px-2.5 py-0.5 rounded-full text-xs font-bold self-center ' +
         (data.overall_sentiment === 'Bullish' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
          data.overall_sentiment === 'Bearish' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
          'bg-slate-700 text-slate-200');
@@ -279,23 +805,23 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
 
       const kpisEl = document.getElementById('res-kpis');
       kpisEl.innerHTML = (data.key_kpis || []).map(k => `
-        <div class="bg-slate-950 border border-slate-800 p-2 rounded">
-          <div class="text-slate-400">${k.metric}</div>
-          <div class="font-bold text-emerald-400">${k.value}</div>
+        <div class="glass-subcard p-3 rounded-xl">
+          <div class="text-slate-400 text-[11px]">${k.metric}</div>
+          <div class="font-mono font-bold text-emerald-400 text-xs mt-0.5">${k.value}</div>
         </div>
       `).join('');
 
       const categories = [
-        ['Financial Performance', data.financial_performance],
-        ['Market Dynamics', data.market_dynamics],
-        ['Expansion Plans', data.expansion_plans],
-        ['Environmental & ESG Risks', data.environmental_risks],
-        ['Regulatory & Policy Changes', data.regulatory_or_policy_changes]
+        ['01 // Financial Performance', data.financial_performance],
+        ['02 // Market Dynamics', data.market_dynamics],
+        ['03 // Expansion & CapEx Plans', data.expansion_plans],
+        ['04 // Environmental & ESG Risks', data.environmental_risks],
+        ['05 // Regulatory & Policy Changes', data.regulatory_or_policy_changes]
       ];
       document.getElementById('category-cards').innerHTML = categories.map(([title, body]) => `
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-2">${title}</h4>
-          <p class="text-sm text-slate-300 leading-relaxed">${body || 'Not specified.'}</p>
+        <div class="glass-card rounded-2xl p-5 shadow-lg">
+          <h4 class="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-2">${title}</h4>
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${body || 'Not specified in transcript.'}</p>
         </div>
       `).join('');
 
@@ -305,20 +831,32 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       radarChartInstance = new Chart(ctx, {
         type: 'radar',
         data: {
-          labels: ['Revenue Growth', 'Profitability', 'Market Position', 'Expansion', 'Regulatory Safety', 'ESG'],
+          labels: ['Rev Growth', 'Profitability', 'Market Pos', 'Expansion', 'Reg Safety', 'ESG'],
           datasets: [{
             label: data.company_name,
             data: [
               r.revenue_growth || 70, r.profitability || 70, r.market_position || 70,
               r.expansion_momentum || 70, r.regulatory_safety || 70, r.esg_sustainability || 70
             ],
-            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+            backgroundColor: 'rgba(16, 185, 129, 0.22)',
             borderColor: 'rgb(16, 185, 129)',
+            borderWidth: 2,
             pointBackgroundColor: 'rgb(16, 185, 129)'
           }]
         },
         options: {
-          scales: { r: { min: 0, max: 100, grid: { color: '#1e293b' }, angleLines: { color: '#1e293b' } } },
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              min: 0,
+              max: 100,
+              grid: { color: 'rgba(255,255,255,0.08)' },
+              angleLines: { color: 'rgba(255,255,255,0.08)' },
+              pointLabels: { color: '#94a3b8', font: { size: 11, family: 'Inter' } },
+              ticks: { display: false }
+            }
+          },
           plugins: { legend: { display: false } }
         }
       });
@@ -330,30 +868,35 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       const data = await res.json();
       document.getElementById('history-count').textContent = `${data.count} saved`;
       const list = document.getElementById('history-list');
-      list.innerHTML = data.reports.map(item => `
-        <button onclick="fetchReport(${item.id})" class="w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between transition">
-          <div>
-            <div class="font-medium text-slate-200">#${item.id} ${item.company_name}</div>
-            <div class="text-slate-500">${item.ticker || ''} ${item.quarter || ''}</div>
-          </div>
-          <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-emerald-400">${item.overall_sentiment}</span>
-        </button>
-      `).join('');
+      if (!data.reports || data.reports.length === 0) {
+        list.innerHTML = '<div class="text-slate-500 glass-subcard p-3 rounded-xl">No cached filings yet. Run an extraction above!</div>';
+      } else {
+        list.innerHTML = data.reports.map(item => `
+          <button onclick="fetchReport(${item.id})" class="w-full text-left glass-subcard hover:bg-white/[0.06] p-3 rounded-xl flex items-center justify-between transition">
+            <div class="min-w-0 pr-2">
+              <div class="font-semibold text-white truncate">#${item.id} ${item.company_name}</div>
+              <div class="text-slate-400 font-mono text-[10px] mt-0.5 truncate">${item.ticker || 'N/A'} • ${item.quarter || 'Filing'}</div>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">${item.overall_sentiment}</span>
+          </button>
+        `).join('');
+      }
 
-      const optionsHtml = data.reports.map(
+      const optionsHtml = (data.reports || []).map(
         item => `<option value="${item.id}">#${item.id} — ${item.company_name} (${item.quarter || 'Filing'})</option>`
       ).join('');
       document.getElementById('compare-id1').innerHTML = optionsHtml;
       document.getElementById('compare-id2').innerHTML = optionsHtml;
-      if (data.reports.length > 1) {
+      if (data.reports && data.reports.length > 1) {
         document.getElementById('compare-id2').selectedIndex = 1;
       }
+      loadTelemetryRibbon();
     }
 
     function showStatus(msg, isError = false) {
       const banner = document.getElementById('status-banner');
       banner.textContent = msg;
-      banner.className = 'mt-3 p-2.5 rounded-lg text-xs border ' +
+      banner.className = 'mt-3 p-3 rounded-xl text-xs border ' +
         (isError ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300');
       banner.classList.remove('hidden');
     }
@@ -375,38 +918,39 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       document.getElementById('forensic-risk-badge').textContent = `Evasion Risk: ${data.evasion_risk_level}`;
 
       document.getElementById('forensic-metrics-bar').innerHTML = `
-        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
-          <div class="text-slate-400">Executive Certainty Signals</div>
-          <div class="text-sm font-bold text-emerald-400">${data.certainty_word_count} hits</div>
+        <div class="glass-subcard p-3.5 rounded-xl">
+          <div class="text-slate-400 text-[11px]">Executive Certainty Signals</div>
+          <div class="text-base font-mono font-extrabold text-emerald-400 mt-0.5">${data.certainty_word_count} hits</div>
         </div>
-        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
-          <div class="text-slate-400">Hedging / Qualifier Terms</div>
-          <div class="text-sm font-bold text-amber-400">${data.hedging_word_count} hits</div>
+        <div class="glass-subcard p-3.5 rounded-xl">
+          <div class="text-slate-400 text-[11px]">Hedging / Qualifier Terms</div>
+          <div class="text-base font-mono font-extrabold text-amber-400 mt-0.5">${data.hedging_word_count} hits</div>
         </div>
-        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg">
-          <div class="text-slate-400">Hedging Ratio</div>
-          <div class="text-sm font-bold text-sky-400">${data.hedging_ratio_pct}%</div>
+        <div class="glass-subcard p-3.5 rounded-xl">
+          <div class="text-slate-400 text-[11px]">Linguistic Hedging Ratio</div>
+          <div class="text-base font-mono font-extrabold text-sky-400 mt-0.5">${data.hedging_ratio_pct}%</div>
         </div>
       `;
 
       const flagsEl = document.getElementById('forensic-flags-list');
       if (!data.red_flags || data.red_flags.length === 0) {
-        flagsEl.innerHTML = '<div class="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg">No material accounting or evasion red flags detected in transcript.</div>';
+        flagsEl.innerHTML = '<div class="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 p-3.5 rounded-xl">No material accounting or evasion red flags detected in transcript.</div>';
       } else {
         flagsEl.innerHTML = data.red_flags.map(f => `
-          <div class="bg-slate-950 border border-slate-800 p-3 rounded-lg space-y-1">
+          <div class="glass-subcard p-3.5 rounded-xl space-y-1.5">
             <div class="flex items-center justify-between">
-              <span class="font-semibold text-amber-300">${f.category}</span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">${f.severity} Severity</span>
+              <span class="font-bold text-amber-300">${f.category}</span>
+              <span class="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">${f.severity} Severity</span>
             </div>
             <div class="text-slate-400">${f.signal}</div>
-            <blockquote class="border-l-2 border-amber-500/60 pl-2 italic text-slate-300">"${f.evidence_sentence}"</blockquote>
+            <blockquote class="border-l-2 border-amber-500/60 pl-3 italic text-slate-200">"${f.evidence_sentence}"</blockquote>
           </div>
         `).join('');
       }
     }
 
     function askPresetQuestion(questionText) {
+      switchReportSubTab('qa');
       const input = document.getElementById('qa-question-input');
       input.value = questionText;
       document.getElementById('qa-form').requestSubmit();
@@ -434,7 +978,7 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
 
         if (!res.ok) {
           thread.insertAdjacentHTML('afterbegin', `
-            <div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3 rounded-lg">
+            <div class="bg-rose-500/10 border border-rose-500/30 text-rose-300 p-3.5 rounded-xl">
               ${data.error || 'Failed to answer question.'}
             </div>
           `);
@@ -442,22 +986,22 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
         }
 
         const citationsHtml = (data.citations || []).map(c => `
-          <blockquote class="border-l-2 border-emerald-500 pl-2.5 py-0.5 text-slate-400 italic bg-slate-900/70 rounded-r">
+          <blockquote class="border-l-2 border-emerald-500 pl-3 py-1 text-slate-300 italic bg-slate-900/90 rounded-r-lg">
             "${c}"
           </blockquote>
         `).join('');
 
         thread.insertAdjacentHTML('afterbegin', `
-          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="font-semibold text-emerald-300">Q: ${data.question}</span>
-              <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full">
-                Grounding Confidence: ${data.confidence_score}%
+          <div class="glass-subcard rounded-xl p-4 space-y-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="font-bold text-emerald-300">Q: ${data.question}</span>
+              <span class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded-full font-semibold">
+                Confidence: ${data.confidence_score}%
               </span>
             </div>
-            <p class="text-slate-200 text-sm leading-relaxed">${data.answer}</p>
+            <p class="text-slate-100 text-xs sm:text-sm leading-relaxed">${data.answer}</p>
             <div class="space-y-1.5 pt-1">
-              <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Verbatim Source Citations:</div>
+              <div class="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">Verbatim Source Citations:</div>
               ${citationsHtml || '<div class="text-slate-500">No direct sentence citation matched.</div>'}
             </div>
           </div>
@@ -474,37 +1018,145 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       const q = document.getElementById('rag-query').value.trim();
       const container = document.getElementById('rag-results');
       if (!q) return;
-      container.innerHTML = '<div class="text-slate-400">Searching transcripts...</div>';
+      container.innerHTML = '<div class="text-slate-400 p-2">Searching stored transcripts...</div>';
       const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       if (!res.ok || !data.results || data.results.length === 0) {
-        container.innerHTML = '<div class="text-slate-500">No matching transcript snippets found.</div>';
+        container.innerHTML = '<div class="text-slate-500 glass-subcard p-4 rounded-xl">No matching transcript snippets found. Analyze a transcript first!</div>';
         return;
       }
       container.innerHTML = data.results.map(r => `
-        <div onclick="fetchReport(${r.id})" class="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 p-2.5 rounded-lg space-y-1 transition">
+        <div onclick="fetchReport(${r.id})" class="cursor-pointer glass-subcard hover:bg-white/[0.06] p-3.5 rounded-xl space-y-1.5 transition">
           <div class="flex items-center justify-between">
-            <span class="font-semibold text-emerald-400">${r.company_name} (${r.quarter || 'Filing'})</span>
-            <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${r.relevance_hits} hits</span>
+            <span class="font-bold text-emerald-400">${r.company_name} (${r.quarter || 'Filing'})</span>
+            <span class="text-[10px] font-mono bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full font-semibold">${r.relevance_hits} hits • Open ↗</span>
           </div>
-          <p class="text-slate-400 italic">${r.matched_snippets[0] || ''}</p>
+          <p class="text-slate-300 italic leading-relaxed">${r.matched_snippets[0] || ''}</p>
         </div>
       `).join('');
     });
 
-    document.getElementById('open-compare-btn').addEventListener('click', () => {
-      document.getElementById('compare-panel').classList.remove('hidden');
+    document.getElementById('sec-lookup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ticker = document.getElementById('sec-ticker-input').value.trim().toUpperCase();
+      const container = document.getElementById('sec-results');
+      if (!ticker) return;
+
+      container.innerHTML = '<div class="text-slate-400 p-2">Querying live SEC EDGAR API (data.sec.gov)...</div>';
+      try {
+        const res = await fetch(`/sec_filings/${encodeURIComponent(ticker)}`);
+        const data = await res.json();
+        if (!res.ok) {
+          container.innerHTML = `<div class="text-rose-400 bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-xl">${data.error || 'SEC lookup failed'}</div>`;
+          return;
+        }
+
+        document.getElementById('company-name').value = data.company_name;
+        document.getElementById('ticker').value = data.ticker;
+
+        const filingsHtml = (data.recent_filings || []).map(f => `
+          <a href="${f.document_url}" target="_blank" class="block glass-card hover:bg-white/[0.06] p-2.5 rounded-xl flex items-center justify-between transition">
+            <div>
+              <span class="font-mono font-bold text-emerald-400">${f.form}</span>
+              <span class="text-slate-400 ml-2 font-mono text-[11px]">Filed: ${f.filing_date}</span>
+            </div>
+            <span class="text-sky-400 text-[11px] font-medium">Open Filing ↗</span>
+          </a>
+        `).join('');
+
+        container.innerHTML = `
+          <div class="glass-subcard p-4 rounded-xl space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-sm">${data.company_name} (${data.ticker})</span>
+              <span class="text-[10px] font-mono bg-white/[0.06] text-emerald-300 px-2.5 py-0.5 rounded-full font-semibold">CIK: ${data.cik}</span>
+            </div>
+            <div class="text-slate-400 text-xs">
+              ${data.exchange ? data.exchange + ' • ' : ''}${data.sic_description || 'SEC Registrant'}
+            </div>
+            <div class="space-y-1.5 pt-1">${filingsHtml || '<div class="text-slate-500">No recent 10-K/10-Q/8-K filings listed.</div>'}</div>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div class="text-rose-400">Network error: ${err.message}</div>`;
+      }
     });
-    document.getElementById('close-compare-btn').addEventListener('click', () => {
-      document.getElementById('compare-panel').classList.add('hidden');
-    });
+
+    async function loadSectorBenchmark() {
+      const res = await fetch('/benchmark');
+      if (!res.ok) return;
+      const data = await res.json();
+      const summaryEl = document.getElementById('benchmark-summary-cards');
+      const tbody = document.getElementById('benchmark-table-body');
+
+      if (!data.peers || data.peers.length === 0) {
+        summaryEl.innerHTML = '<div class="col-span-3 text-slate-400 glass-subcard p-4 rounded-xl">Analyze at least one company transcript in the Studio to populate the Sector Peer Matrix.</div>';
+        tbody.innerHTML = '';
+        return;
+      }
+
+      const avg = data.sector_averages || {};
+      summaryEl.innerHTML = `
+        <div class="glass-subcard p-4 rounded-xl">
+          <div class="text-slate-400 text-[11px] font-mono uppercase">🏆 #1 Sector Leader</div>
+          <div class="text-base font-extrabold text-emerald-400 mt-1">${data.sector_leader}</div>
+        </div>
+        <div class="glass-subcard p-4 rounded-xl">
+          <div class="text-slate-400 text-[11px] font-mono uppercase">🛡️ Lowest-Risk Peer</div>
+          <div class="text-base font-extrabold text-sky-400 mt-1">${data.lowest_risk_peer}</div>
+        </div>
+        <div class="glass-subcard p-4 rounded-xl">
+          <div class="text-slate-400 text-[11px] font-mono uppercase">📈 Sector Avg Composite</div>
+          <div class="text-base font-mono font-extrabold text-amber-300 mt-1">${avg.composite_score ?? 0} / 100 (${data.peer_count} peers)</div>
+        </div>
+      `;
+
+      const heatColor = (val) => val >= 82 ? 'text-emerald-400 font-bold' : val >= 70 ? 'text-sky-300' : 'text-amber-300';
+
+      const rowsHtml = data.peers.map(p => {
+        const rs = p.radar_scores || {};
+        return `
+          <tr onclick="fetchReport(${p.id})" class="hover:bg-white/[0.04] cursor-pointer transition">
+            <td class="py-3 px-3 font-bold text-amber-400">#${p.rank}</td>
+            <td class="py-3 px-3 font-sans font-semibold text-white">${p.company_name} <span class="text-slate-500 font-normal">${p.quarter || ''}</span></td>
+            <td class="py-3 px-3 font-sans"><span class="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 text-[10px] font-bold">${p.overall_sentiment}</span></td>
+            <td class="py-3 px-3 font-extrabold text-emerald-400">${p.composite_score}</td>
+            <td class="py-3 px-3 ${heatColor(rs.revenue_growth)}">${rs.revenue_growth}</td>
+            <td class="py-3 px-3 ${heatColor(rs.profitability)}">${rs.profitability}</td>
+            <td class="py-3 px-3 ${heatColor(rs.market_position)}">${rs.market_position}</td>
+            <td class="py-3 px-3 ${heatColor(rs.expansion_momentum)}">${rs.expansion_momentum}</td>
+            <td class="py-3 px-3 ${heatColor(rs.regulatory_safety)}">${rs.regulatory_safety}</td>
+            <td class="py-3 px-3 ${heatColor(rs.esg_sustainability)}">${rs.esg_sustainability}</td>
+            <td class="py-3 px-3 font-bold text-rose-300">${p.risk_score}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const avgRow = `
+        <tr class="bg-white/[0.03] border-t-2 border-white/[0.1] font-bold text-slate-200">
+          <td class="py-3 px-3 text-slate-400">AVG</td>
+          <td class="py-3 px-3 font-sans">Sector Benchmark Average</td>
+          <td class="py-3 px-3">—</td>
+          <td class="py-3 px-3 text-amber-300">${avg.composite_score ?? 0}</td>
+          <td class="py-3 px-3">${avg.revenue_growth ?? 0}</td>
+          <td class="py-3 px-3">${avg.profitability ?? 0}</td>
+          <td class="py-3 px-3">${avg.market_position ?? 0}</td>
+          <td class="py-3 px-3">${avg.expansion_momentum ?? 0}</td>
+          <td class="py-3 px-3">${avg.regulatory_safety ?? 0}</td>
+          <td class="py-3 px-3">${avg.esg_sustainability ?? 0}</td>
+          <td class="py-3 px-3 text-rose-300">${avg.risk_score ?? 0}</td>
+        </tr>
+      `;
+      tbody.innerHTML = rowsHtml + avgRow;
+    }
+
+    document.getElementById('refresh-benchmark-btn').addEventListener('click', loadSectorBenchmark);
 
     document.getElementById('run-compare-btn').addEventListener('click', async () => {
       const id1 = document.getElementById('compare-id1').value;
       const id2 = document.getElementById('compare-id2').value;
       const out = document.getElementById('compare-output');
       if (!id1 || !id2) {
-        out.innerHTML = '<div class="text-amber-400">Analyze at least two reports first to compare.</div>';
+        out.innerHTML = '<div class="text-amber-400 glass-subcard p-4 rounded-xl">Analyze at least two reports first to compare.</div>';
         return;
       }
       const res = await fetch(`/compare?id1=${id1}&id2=${id2}`);
@@ -516,17 +1168,66 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       const deltas = Object.entries(data.radar_score_deltas || {}).map(([k, v]) => {
         const sign = v > 0 ? `+${v}` : `${v}`;
         const color = v >= 0 ? 'text-emerald-400' : 'text-rose-400';
-        return `<div class="bg-slate-950 border border-slate-800 p-2 rounded flex justify-between">
-          <span class="text-slate-400">${k.replace(/_/g, ' ')}</span>
-          <span class="font-bold ${color}">${sign} pts</span>
+        return `<div class="glass-subcard p-3 rounded-xl flex justify-between items-center">
+          <span class="text-slate-300 capitalize">${k.replace(/_/g, ' ')}</span>
+          <span class="font-mono font-extrabold ${color}">${sign} pts</span>
         </div>`;
       }).join('');
       out.innerHTML = `
-        <div class="flex items-center justify-between bg-slate-950 border border-slate-800 p-3 rounded-lg">
+        <div class="flex flex-wrap items-center justify-between glass-subcard p-4 rounded-xl gap-2">
           <span><strong>${data.report_1.company_name}</strong> (${data.report_1.overall_sentiment}) vs <strong>${data.report_2.company_name}</strong> (${data.report_2.overall_sentiment})</span>
-          <span class="text-amber-400 font-semibold">Risk Index Delta: ${data.risk_delta > 0 ? '+' + data.risk_delta : data.risk_delta}</span>
+          <span class="text-amber-400 font-mono font-bold">Risk Delta: ${data.risk_delta > 0 ? '+' + data.risk_delta : data.risk_delta}</span>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">${deltas}</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">${deltas}</div>
+      `;
+    });
+
+    document.getElementById('run-credibility-btn').addEventListener('click', async () => {
+      const prevId = document.getElementById('compare-id1').value;
+      const currId = document.getElementById('compare-id2').value;
+      const out = document.getElementById('compare-output');
+      if (!prevId || !currId) {
+        out.innerHTML = '<div class="text-amber-400 glass-subcard p-4 rounded-xl">Analyze at least two reports first to audit guidance credibility.</div>';
+        return;
+      }
+      const res = await fetch(`/credibility?prev_id=${prevId}&curr_id=${currId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        out.innerHTML = `<div class="text-rose-400">${data.error || 'Credibility audit failed'}</div>`;
+        return;
+      }
+
+      const promisesHtml = (data.promises_audited || []).map(p => {
+        const badgeClass = p.status === 'Delivered'
+          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+          : p.status === 'In Progress'
+          ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+          : 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        return `
+          <div class="glass-subcard p-4 rounded-xl space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">Prior Guidance (${data.previous_quarter})</span>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">${p.status}</span>
+            </div>
+            <p class="text-slate-300 italic">"${p.prior_promise}"</p>
+            <div class="text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-bold pt-1">Actual Outcome (${data.current_quarter})</div>
+            <p class="text-slate-100">"${p.actual_outcome}"</p>
+          </div>
+        `;
+      }).join('');
+
+      out.innerHTML = `
+        <div class="glass-subcard border-emerald-500/40 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-sm font-bold text-white">${data.company_name} — Management Execution Audit</div>
+            <div class="text-slate-400 mt-0.5">${data.executive_summary}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold">${data.execution_grade}</span>
+            <span class="text-lg font-mono font-extrabold text-emerald-400">${data.credibility_score}/100</span>
+          </div>
+        </div>
+        <div class="space-y-2.5">${promisesHtml}</div>
       `;
     });
 
@@ -573,7 +1274,7 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
         showStatus('Request error: ' + err.message, true);
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Run Intelligence Extraction';
+        btn.textContent = 'Run 5-Pillar Intelligence Extraction';
       }
     });
 

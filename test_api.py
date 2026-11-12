@@ -1,6 +1,6 @@
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from config import Config
 
@@ -315,6 +315,143 @@ class FinSightAPITestSuite(unittest.TestCase):
         blocked = self.client.get("/health")
         self.assertEqual(blocked.status_code, 429)
         self.assertIn("Rate limit exceeded", blocked.get_json()["error"])
+
+    @patch("app.analyze_earnings_transcript")
+    def test_16_sector_peer_benchmark_matrix_endpoint(self, mock_analyze):
+        """Verify GET /benchmark ranks multiple peers, computes composite scores, and returns sector averages."""
+        peer_a = dict(MOCK_ANALYSIS)
+        peer_a["risk_score"] = 20
+        peer_b = dict(MOCK_ANALYSIS)
+        peer_b["risk_score"] = 45
+        mock_analyze.side_effect = [peer_a, peer_b]
+
+        r1 = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Alpha Semiconductor",
+                "ticker": "ALPH",
+                "quarter": "Q3 FY26",
+                "transcript_text": "Alpha Semiconductor delivered record AI chip revenue.",
+            },
+        ).get_json()
+
+        r2 = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Beta Cloud Corp",
+                "ticker": "BETA",
+                "quarter": "Q3 FY26",
+                "transcript_text": "Beta Cloud Corp experienced moderate enterprise growth.",
+            },
+        ).get_json()
+
+        res = self.client.get(f"/benchmark?ids={r1['id']},{r2['id']}")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["peer_count"], 2)
+        self.assertEqual(data["sector_leader"], "Alpha Semiconductor")
+        self.assertEqual(data["lowest_risk_peer"], "Alpha Semiconductor")
+        self.assertIn("composite_score", data["sector_averages"])
+        self.assertEqual(data["peers"][0]["rank"], 1)
+
+    @patch("app.analyze_earnings_transcript")
+    def test_17_guidance_credibility_tracker_endpoint(self, mock_analyze):
+        """Verify GET /credibility audits prior-quarter promises against current-quarter reality."""
+        mock_analyze.return_value = dict(MOCK_ANALYSIS)
+
+        q2_res = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Apex Cloud Systems",
+                "ticker": "APEX",
+                "quarter": "Q2 FY26",
+                "transcript_text": (
+                    "We plan to launch two sovereign cloud regions in Frankfurt and "
+                    "expect revenue growth to exceed 20% next quarter."
+                ),
+            },
+        ).get_json()
+
+        q3_res = self.client.post(
+            "/earnings_transcript_summary",
+            json={
+                "company_name": "Apex Cloud Systems",
+                "ticker": "APEX",
+                "quarter": "Q3 FY26",
+                "transcript_text": (
+                    "We delivered 24% revenue growth and completed the launch of our "
+                    "Frankfurt sovereign cloud region ahead of schedule."
+                ),
+            },
+        ).get_json()
+
+        # Verify 400 when parameters are missing
+        bad_res = self.client.get("/credibility")
+        self.assertEqual(bad_res.status_code, 400)
+
+        # Verify 200 and structured promise audit
+        cred_res = self.client.get(
+            f"/credibility?prev_id={q2_res['id']}&curr_id={q3_res['id']}"
+        )
+        self.assertEqual(cred_res.status_code, 200)
+        data = cred_res.get_json()
+        self.assertEqual(data["company_name"], "Apex Cloud Systems")
+        self.assertGreaterEqual(data["credibility_score"], 75)
+        self.assertIn(
+            data["execution_grade"],
+            ["High Credibility", "Moderate Execution", "Execution Deficit"],
+        )
+        self.assertGreaterEqual(len(data["promises_audited"]), 1)
+        self.assertEqual(data["promises_audited"][0]["status"], "Delivered")
+
+    @patch("sec_connector.requests.get")
+    def test_18_live_sec_edgar_connector_endpoint(self, mock_requests_get):
+        """Verify GET /sec_filings/<ticker> queries SEC EDGAR endpoints and parses 10-K/10-Q filings."""
+        mock_tickers_resp = MagicMock()
+        mock_tickers_resp.raise_for_status.return_value = None
+        mock_tickers_resp.json.return_value = {
+            "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}
+        }
+
+        mock_submissions_resp = MagicMock()
+        mock_submissions_resp.raise_for_status.return_value = None
+        mock_submissions_resp.json.return_value = {
+            "name": "Apple Inc.",
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
+            "exchanges": ["Nasdaq"],
+            "fiscalYearEnd": "0928",
+            "stateOfIncorporation": "CA",
+            "filings": {
+                "recent": {
+                    "form": ["10-K", "10-Q", "4"],
+                    "filingDate": ["2025-11-01", "2025-08-01", "2025-07-15"],
+                    "reportDate": ["2025-09-28", "2025-06-28", "2025-07-15"],
+                    "accessionNumber": [
+                        "0000320193-25-000106",
+                        "0000320193-25-000077",
+                        "0000320193-25-000050",
+                    ],
+                    "primaryDocument": [
+                        "aapl-20250928.htm",
+                        "aapl-20250628.htm",
+                        "form4.xml",
+                    ],
+                }
+            },
+        }
+
+        mock_requests_get.side_effect = [mock_tickers_resp, mock_submissions_resp]
+
+        res = self.client.get("/sec_filings/AAPL")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertEqual(data["ticker"], "AAPL")
+        self.assertEqual(data["cik"], "0000320193")
+        self.assertEqual(data["company_name"], "Apple Inc.")
+        self.assertEqual(len(data["recent_filings"]), 2)
+        self.assertEqual(data["recent_filings"][0]["form"], "10-K")
+        self.assertIn("https://www.sec.gov/Archives/edgar/data/", data["recent_filings"][0]["document_url"])
 
 
 if __name__ == "__main__":

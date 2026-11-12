@@ -12,9 +12,11 @@ from pydantic import ValidationError
 from analyzer import (
     analyze_earnings_transcript,
     answer_transcript_question,
+    evaluate_guidance_credibility,
     run_forensic_red_flag_audit,
 )
 from database import (
+    compute_sector_benchmark,
     compute_transcript_hash,
     delete_report_by_id,
     get_all_reports,
@@ -29,11 +31,15 @@ from pdf_parser import extract_text_from_upload, normalize_transcript_text
 from schemas import (
     AnalysisResponse,
     BatchTranscriptRequest,
+    CredibilityTrackerResponse,
     ForensicAuditResponse,
     GroundedAnswerResponse,
     QuestionRequest,
+    SECCompanyIntelligenceResponse,
+    SectorBenchmarkResponse,
     TranscriptRequest,
 )
+from sec_connector import fetch_live_sec_edgar_profile
 
 logging.basicConfig(
     level=logging.INFO,
@@ -437,6 +443,68 @@ def compare_reports():
         ),
         200,
     )
+
+
+@app.route("/benchmark", methods=["GET"])
+def sector_peer_benchmark():
+    """Generate a Multi-Company Sector Peer Benchmark Matrix & Heatmap across cached filings."""
+    ids_param = request.args.get("ids", "").strip()
+    report_ids = None
+    if ids_param:
+        try:
+            report_ids = [int(x.strip()) for x in ids_param.split(",") if x.strip()]
+        except ValueError:
+            return jsonify({"error": "Parameter 'ids' must be comma-separated integers"}), 400
+
+    raw_matrix = compute_sector_benchmark(report_ids=report_ids, limit=10)
+    validated = SectorBenchmarkResponse(**raw_matrix).model_dump()
+    return jsonify(validated), 200
+
+
+@app.route("/credibility", methods=["GET"])
+def guidance_credibility_tracker():
+    """Audit prior-quarter forward guidance promises against current-quarter actuals."""
+    prev_id = request.args.get("prev_id", type=int)
+    curr_id = request.args.get("curr_id", type=int)
+    if not prev_id or not curr_id:
+        return (
+            jsonify({"error": "Query parameters prev_id and curr_id are required"}),
+            400,
+        )
+
+    prev_report = get_report_by_id(prev_id)
+    curr_report = get_report_by_id(curr_id)
+    if not prev_report or not curr_report:
+        return jsonify({"error": "One or both reports were not found"}), 404
+
+    raw_audit = evaluate_guidance_credibility(prev_report, curr_report)
+    validated = CredibilityTrackerResponse(**raw_audit).model_dump()
+    return jsonify(validated), 200
+
+
+@app.route("/sec_filings/<string:ticker>", methods=["GET"])
+def sec_edgar_live_lookup(ticker: str):
+    """Fetch live company metadata and recent 10-K/10-Q/8-K filings directly from SEC EDGAR."""
+    clean_ticker = ticker.strip().upper()
+    if not clean_ticker or not clean_ticker.replace("-", "").replace(".", "").isalnum():
+        return jsonify({"error": "Invalid ticker symbol format"}), 400
+
+    try:
+        raw_profile = fetch_live_sec_edgar_profile(clean_ticker)
+        validated = SECCompanyIntelligenceResponse(**raw_profile).model_dump()
+        return jsonify(validated), 200
+    except LookupError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        logger.warning("Live SEC EDGAR API request failed for %s: %s", clean_ticker, exc)
+        return (
+            jsonify(
+                {
+                    "error": f"Failed to reach live SEC EDGAR API for '{clean_ticker}': {str(exc)}"
+                }
+            ),
+            502,
+        )
 
 
 @app.route("/health", methods=["GET"])

@@ -134,3 +134,77 @@ class ForensicAuditResponse(BaseModel):
     hedging_ratio_pct: float = 0.0
     detected_hedging_terms: Dict[str, int] = Field(default_factory=dict)
     red_flags: List[ForensicFlag] = Field(default_factory=list)
+
+
+class PeerBenchmarkItem(BaseModel):
+    """Single company entry inside the Multi-Company Sector Peer Benchmark Matrix."""
+
+    id: int
+    rank: int
+    company_name: str
+    ticker: str = ""
+    quarter: str = ""
+    overall_sentiment: str = "Neutral"
+    confidence_score: int = 75
+    risk_score: int = 35
+    composite_score: float = 75.0
+    radar_scores: RadarScores
+
+
+class SectorBenchmarkResponse(BaseModel):
+    """Validated output contract for Multi-Company Sector Peer Benchmark Matrix."""
+
+    peer_count: int
+    sector_leader: str
+    lowest_risk_peer: str
+    sector_averages: Dict[str, float] = Field(default_factory=dict)
+    peers: List[PeerBenchmarkItem] = Field(default_factory=list)
+
+
+class GuidancePromiseAudit(BaseModel):
+    """Single forward-guidance commitment audited against subsequent actual performance."""
+
+    prior_promise: str
+    actual_outcome: str
+    status: Literal["Delivered", "In Progress", "Missed / Pivoted"] = "Delivered"
+
+
+class CredibilityTrackerResponse(BaseModel):
+    """Validated output contract for Multi-Quarter Guidance vs. Reality Credibility Tracker."""
+
+    company_name: str
+    previous_report_id: int
+    current_report_id: int
+    previous_quarter: str = ""
+    current_quarter: str = ""
+    credibility_score: int = Field(default=85, ge=0, le=100)
+    execution_grade: Literal[
+        "High Credibility", "Moderate Execution", "Execution Deficit"
+    ] = "High Credibility"
+    promises_audited: List[GuidancePromiseAudit] = Field(default_factory=list)
+    executive_summary: str = ""
+
+
+class SECFilingItem(BaseModel):
+    """Single official SEC EDGAR filing metadata item (10-K, 10-Q, 8-K)."""
+
+    form: str
+    filing_date: str
+    report_date: str = ""
+    accession_number: str = ""
+    document_url: str
+
+
+class SECCompanyIntelligenceResponse(BaseModel):
+    """Validated output contract for Live SEC EDGAR Company & Filings Connector."""
+
+    ticker: str
+    company_name: str
+    cik: str
+    sic: str = ""
+    sic_description: str = ""
+    exchange: str = ""
+    fiscal_year_end: str = ""
+    state_of_incorporation: str = ""
+    sec_browse_url: str
+    recent_filings: List[SECFilingItem] = Field(default_factory=list)
