@@ -1,0 +1,81 @@
+from typing import Any, Dict, List, Literal
+from pydantic import BaseModel, Field, field_validator
+from config import Config
+
+
+class TranscriptRequest(BaseModel):
+    """Strict input validation schema for incoming earnings call transcripts."""
+
+    company_name: str = Field(..., min_length=1, max_length=200)
+    ticker: str = Field(default="", max_length=20)
+    quarter: str = Field(default="", max_length=40)
+    transcript_text: str = Field(..., min_length=1)
+
+    @field_validator("company_name")
+    @classmethod
+    def validate_company_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("Company name cannot be empty")
+        return cleaned
+
+    @field_validator("ticker")
+    @classmethod
+    def validate_ticker(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("quarter")
+    @classmethod
+    def validate_quarter(cls, v: str) -> str:
+        return v.strip()
+
+    @field_validator("transcript_text")
+    @classmethod
+    def validate_transcript_text(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("Transcript text cannot be empty")
+        if len(cleaned) > Config.MAX_TOKENS:
+            raise ValueError(
+                f"Transcript text exceeds maximum length of {Config.MAX_TOKENS} characters"
+            )
+        return cleaned
+
+
+class RadarScores(BaseModel):
+    """6-factor institutional scoring matrix bounded between 0 and 100."""
+
+    revenue_growth: int = Field(default=75, ge=0, le=100)
+    profitability: int = Field(default=75, ge=0, le=100)
+    market_position: int = Field(default=75, ge=0, le=100)
+    expansion_momentum: int = Field(default=75, ge=0, le=100)
+    regulatory_safety: int = Field(default=75, ge=0, le=100)
+    esg_sustainability: int = Field(default=70, ge=0, le=100)
+
+
+class KPIItem(BaseModel):
+    """Structured financial KPI metric extracted from transcript."""
+
+    metric: str
+    value: str
+    impact: str = "Neutral"
+
+
+class AnalysisResponse(BaseModel):
+    """Validated output contract for FinSight AI intelligence reports."""
+
+    company_name: str
+    ticker: str = ""
+    quarter: str = ""
+    financial_performance: str
+    market_dynamics: str
+    expansion_plans: str
+    environmental_risks: str
+    regulatory_or_policy_changes: str
+    overall_sentiment: Literal["Bullish", "Neutral", "Bearish"] = "Neutral"
+    confidence_score: int = Field(default=75, ge=0, le=100)
+    risk_score: int = Field(default=35, ge=0, le=100)
+    radar_scores: RadarScores
+    key_kpis: List[KPIItem] = Field(default_factory=list)
+    executive_takeaways: List[str] = Field(default_factory=list)
+    nlp_metrics: Dict[str, Any] = Field(default_factory=dict)

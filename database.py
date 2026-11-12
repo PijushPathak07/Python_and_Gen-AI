@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -21,7 +22,7 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
 
 
 def init_db(db_path: Optional[str] = None) -> None:
-    """Initialize the SQLite schema for storing earnings reports."""
+    """Initialize the SQLite schema and ensure full-text RAG columns exist."""
     with get_connection(db_path) as conn:
         conn.execute(
             """
@@ -31,6 +32,7 @@ def init_db(db_path: Optional[str] = None) -> None:
                 ticker TEXT DEFAULT '',
                 quarter TEXT DEFAULT '',
                 transcript_hash TEXT NOT NULL UNIQUE,
+                transcript_text TEXT DEFAULT '',
                 analysis_json TEXT NOT NULL,
                 overall_sentiment TEXT NOT NULL,
                 confidence_score INTEGER NOT NULL,
@@ -39,6 +41,16 @@ def init_db(db_path: Optional[str] = None) -> None:
             )
             """
         )
+        # Safe schema migration for existing databases created in Phase 1
+        columns = [
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(reports)").fetchall()
+        ]
+        if "transcript_text" not in columns:
+            conn.execute(
+                "ALTER TABLE reports ADD COLUMN transcript_text TEXT DEFAULT ''"
+            )
+
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_transcript_hash ON reports(transcript_hash)"
         )
@@ -68,9 +80,10 @@ def save_report(
     quarter: str,
     transcript_hash: str,
     analysis_data: Dict[str, Any],
+    transcript_text: str = "",
     db_path: Optional[str] = None,
 ) -> int:
-    """Persist an analyzed earnings report to SQLite and return its row ID."""
+    """Persist an analyzed earnings report and raw transcript for RAG search."""
     created_at = datetime.now(timezone.utc).isoformat()
     overall_sentiment = analysis_data.get("overall_sentiment", "Neutral")
     confidence_score = int(analysis_data.get("confidence_score", 75))
@@ -81,15 +94,16 @@ def save_report(
             """
             INSERT OR REPLACE INTO reports (
                 company_name, ticker, quarter, transcript_hash,
-                analysis_json, overall_sentiment, confidence_score,
-                risk_score, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                transcript_text, analysis_json, overall_sentiment,
+                confidence_score, risk_score, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 company_name,
                 ticker,
                 quarter,
                 transcript_hash,
+                transcript_text,
                 json.dumps(analysis_data),
                 overall_sentiment,
                 confidence_score,
@@ -142,3 +156,68 @@ def delete_report_by_id(report_id: int, db_path: Optional[str] = None) -> bool:
         cursor = conn.execute("DELETE FROM reports WHERE id = ?", (report_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+def search_reports_rag(
+    query: str, limit: int = 10, db_path: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Full-text RAG retrieval across stored transcripts and extracted insights."""
+    cleaned_query = query.strip()
+    if not cleaned_query:
+        return []
+
+    like_pattern = f"%{cleaned_query}%"
+    results: List[Dict[str, Any]] = []
+
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, company_name, ticker, quarter, overall_sentiment,
+                   confidence_score, risk_score, transcript_text, analysis_json, created_at
+            FROM reports
+            WHERE transcript_text LIKE ? OR analysis_json LIKE ? OR company_name LIKE ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (like_pattern, like_pattern, like_pattern, limit),
+        ).fetchall()
+
+        for row in rows:
+            raw_text = row["transcript_text"] or ""
+            analysis_blob = row["analysis_json"] or ""
+            searchable_source = raw_text if raw_text else analysis_blob
+
+            # Count term frequency and extract a 180-character context window snippet
+            matches = list(
+                re.finditer(re.escape(cleaned_query), searchable_source, re.IGNORECASE)
+            )
+            relevance_hits = len(matches)
+
+            snippets: List[str] = []
+            for match in matches[:3]:
+                start = max(0, match.start() - 70)
+                end = min(len(searchable_source), match.end() + 110)
+                snippet = searchable_source[start:end].replace("\n", " ").strip()
+                snippets.append(f"...{snippet}...")
+
+            if not snippets:
+                snippets.append("Matched in company metadata or structured report summary.")
+
+            results.append(
+                {
+                    "id": row["id"],
+                    "company_name": row["company_name"],
+                    "ticker": row["ticker"],
+                    "quarter": row["quarter"],
+                    "overall_sentiment": row["overall_sentiment"],
+                    "confidence_score": row["confidence_score"],
+                    "risk_score": row["risk_score"],
+                    "relevance_hits": max(1, relevance_hits),
+                    "matched_snippets": snippets,
+                    "created_at": row["created_at"],
+                }
+            )
+
+    # Sort descending by relevance hits
+    results.sort(key=lambda r: r["relevance_hits"], reverse=True)
+    return results

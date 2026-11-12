@@ -5,3 +5,4 @@ python-dotenv
 pypdf
 requests
 gunicorn
+pydantic>=2.0.0

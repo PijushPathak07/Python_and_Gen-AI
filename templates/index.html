@@ -9,19 +9,27 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
   <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
       <div>
         <h1 class="text-xl font-bold tracking-tight text-emerald-400">FinSight AI</h1>
-        <p class="text-xs text-slate-400">Enterprise Earnings Call Intelligence & Risk Radar (SHA-256 Cached)</p>
+        <p class="text-xs text-slate-400">Enterprise Earnings Call Intelligence, RAG Search & Risk Radar (SHA-256 Cached)</p>
       </div>
-      <button id="load-sample-btn" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-lg transition">
-        Load Sample Earnings Transcript
-      </button>
+      <div class="flex items-center gap-3">
+        <a href="/apidocs" target="_blank" class="text-xs bg-slate-900 hover:bg-slate-800 text-sky-400 border border-sky-500/30 px-3 py-2 rounded-lg transition">
+          Swagger API Docs ↗
+        </a>
+        <button id="open-compare-btn" type="button" class="text-xs bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 px-3 py-2 rounded-lg transition">
+          Compare QoQ Reports
+        </button>
+        <button id="load-sample-btn" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 px-3 py-2 rounded-lg transition">
+          Load Sample Earnings Transcript
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-    <!-- Left Column: Input + History -->
+    <!-- Left Column: Input + RAG Search + History -->
     <section class="lg:col-span-4 space-y-6">
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
         <h2 class="text-base font-semibold mb-4 text-slate-200">Analyze Transcript</h2>
@@ -52,6 +60,19 @@
             Run Intelligence Extraction
           </button>
         </form>
+        <div id="status-banner" class="hidden mt-3 p-2.5 rounded-lg text-xs border"></div>
+      </div>
+
+      <!-- Interactive Full-Text RAG Search -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+        <h3 class="text-sm font-semibold text-slate-200 mb-2">Full-Text RAG Transcript Search</h3>
+        <form id="rag-search-form" class="flex gap-2 mb-3">
+          <input type="text" id="rag-query" placeholder="e.g. GPU, carbon tax, margin..." class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-emerald-500" />
+          <button type="submit" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">
+            Search
+          </button>
+        </form>
+        <div id="rag-results" class="space-y-2 max-h-56 overflow-y-auto text-xs"></div>
       </div>
 
       <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
@@ -65,6 +86,25 @@
 
     <!-- Right Column: Results Dashboard -->
     <section class="lg:col-span-8 space-y-6">
+      <!-- QoQ Comparison Panel (Toggled) -->
+      <div id="compare-panel" class="hidden bg-slate-900 border border-purple-500/40 rounded-xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-bold text-purple-300">Quarter-over-Quarter (QoQ) & Peer Comparison</h3>
+            <p class="text-xs text-slate-400">Select any two cached reports to compute Radar score deltas and Risk Index shifts</p>
+          </div>
+          <button id="close-compare-btn" type="button" class="text-xs text-slate-400 hover:text-white">Close ✕</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <select id="compare-id1" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs"></select>
+          <select id="compare-id2" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs"></select>
+          <button id="run-compare-btn" type="button" class="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold py-2 px-4 rounded-lg transition">
+            Run Delta Comparison
+          </button>
+        </div>
+        <div id="compare-output" class="text-xs space-y-3"></div>
+      </div>
+
       <div id="empty-state" class="bg-slate-900/50 border border-dashed border-slate-800 rounded-xl p-12 text-center">
         <p class="text-slate-400 text-sm">Submit an earnings call transcript or click <strong>"Load Sample Earnings Transcript"</strong> in the top bar to generate multi-pillar institutional intelligence.</p>
       </div>
@@ -217,12 +257,29 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       list.innerHTML = data.reports.map(item => `
         <button onclick="fetchReport(${item.id})" class="w-full text-left bg-slate-950 hover:bg-slate-800 border border-slate-800 p-2.5 rounded-lg flex items-center justify-between transition">
           <div>
-            <div class="font-medium text-slate-200">${item.company_name}</div>
+            <div class="font-medium text-slate-200">#${item.id} ${item.company_name}</div>
             <div class="text-slate-500">${item.ticker || ''} ${item.quarter || ''}</div>
           </div>
           <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-emerald-400">${item.overall_sentiment}</span>
         </button>
       `).join('');
+
+      const optionsHtml = data.reports.map(
+        item => `<option value="${item.id}">#${item.id} — ${item.company_name} (${item.quarter || 'Filing'})</option>`
+      ).join('');
+      document.getElementById('compare-id1').innerHTML = optionsHtml;
+      document.getElementById('compare-id2').innerHTML = optionsHtml;
+      if (data.reports.length > 1) {
+        document.getElementById('compare-id2').selectedIndex = 1;
+      }
+    }
+
+    function showStatus(msg, isError = false) {
+      const banner = document.getElementById('status-banner');
+      banner.textContent = msg;
+      banner.className = 'mt-3 p-2.5 rounded-lg text-xs border ' +
+        (isError ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300');
+      banner.classList.remove('hidden');
     }
 
     async function fetchReport(id) {
@@ -233,11 +290,73 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
       }
     }
 
+    document.getElementById('rag-search-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const q = document.getElementById('rag-query').value.trim();
+      const container = document.getElementById('rag-results');
+      if (!q) return;
+      container.innerHTML = '<div class="text-slate-400">Searching transcripts...</div>';
+      const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (!res.ok || !data.results || data.results.length === 0) {
+        container.innerHTML = '<div class="text-slate-500">No matching transcript snippets found.</div>';
+        return;
+      }
+      container.innerHTML = data.results.map(r => `
+        <div onclick="fetchReport(${r.id})" class="cursor-pointer bg-slate-950 hover:bg-slate-800 border border-slate-800 p-2.5 rounded-lg space-y-1 transition">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-emerald-400">${r.company_name} (${r.quarter || 'Filing'})</span>
+            <span class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded">${r.relevance_hits} hits</span>
+          </div>
+          <p class="text-slate-400 italic">${r.matched_snippets[0] || ''}</p>
+        </div>
+      `).join('');
+    });
+
+    document.getElementById('open-compare-btn').addEventListener('click', () => {
+      document.getElementById('compare-panel').classList.remove('hidden');
+    });
+    document.getElementById('close-compare-btn').addEventListener('click', () => {
+      document.getElementById('compare-panel').classList.add('hidden');
+    });
+
+    document.getElementById('run-compare-btn').addEventListener('click', async () => {
+      const id1 = document.getElementById('compare-id1').value;
+      const id2 = document.getElementById('compare-id2').value;
+      const out = document.getElementById('compare-output');
+      if (!id1 || !id2) {
+        out.innerHTML = '<div class="text-amber-400">Analyze at least two reports first to compare.</div>';
+        return;
+      }
+      const res = await fetch(`/compare?id1=${id1}&id2=${id2}`);
+      const data = await res.json();
+      if (!res.ok) {
+        out.innerHTML = `<div class="text-rose-400">${data.error || 'Comparison failed'}</div>`;
+        return;
+      }
+      const deltas = Object.entries(data.radar_score_deltas || {}).map(([k, v]) => {
+        const sign = v > 0 ? `+${v}` : `${v}`;
+        const color = v >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        return `<div class="bg-slate-950 border border-slate-800 p-2 rounded flex justify-between">
+          <span class="text-slate-400">${k.replace(/_/g, ' ')}</span>
+          <span class="font-bold ${color}">${sign} pts</span>
+        </div>`;
+      }).join('');
+      out.innerHTML = `
+        <div class="flex items-center justify-between bg-slate-950 border border-slate-800 p-3 rounded-lg">
+          <span><strong>${data.report_1.company_name}</strong> (${data.report_1.overall_sentiment}) vs <strong>${data.report_2.company_name}</strong> (${data.report_2.overall_sentiment})</span>
+          <span class="text-amber-400 font-semibold">Risk Index Delta: ${data.risk_delta > 0 ? '+' + data.risk_delta : data.risk_delta}</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">${deltas}</div>
+      `;
+    });
+
     document.getElementById('transcript-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
       btn.textContent = 'Analyzing Transcript...';
+      document.getElementById('status-banner').classList.add('hidden');
 
       try {
         const fileInput = document.getElementById('transcript-file');
@@ -269,10 +388,10 @@ Finally, regarding regulatory changes, we completed full compliance audits for t
           renderDashboard(result);
           loadHistory();
         } else {
-          alert(result.error || 'Failed to analyze transcript.');
+          showStatus(result.error || 'Failed to analyze transcript.', true);
         }
       } catch (err) {
-        alert('Request error: ' + err.message);
+        showStatus('Request error: ' + err.message, true);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Run Intelligence Extraction';
